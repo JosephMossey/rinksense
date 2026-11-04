@@ -76,7 +76,11 @@
     <aside class="right">
       <div class="card stats">
         <div class="chead"><span class="ctitle">PLAYER STATS</span><span class="csub" id="statsThrough">through 20:00 of P1</span></div>
-        <div class="tablebox">
+        <div class="tabs" role="tablist">
+          <button class="tab on" role="tab" aria-selected="true" data-team="Team D"><i class="dot d"></i>Team D</button>
+          <button class="tab" role="tab" aria-selected="false" data-team="Team A"><i class="dot a"></i>Team A</button>
+        </div>
+        <div class="tablebox" id="tablebox">
           <table>
             <thead><tr><th>#</th><th>TOI</th><th>SOG</th><th>G</th><th>A*</th><th>PEN</th></tr></thead>
             <tbody id="statsBody"></tbody>

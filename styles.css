@@ -84,7 +84,11 @@ h1 { font-family: 'Bebas Neue', sans-serif; font-weight: 400; font-size: 52px; l
 .csub { font-size: 11px; color: var(--dim); }
 
 .stats { padding-bottom: 12px; }
-.tablebox { max-height: 330px; overflow-y: auto; margin: 0 8px; scrollbar-width: thin; scrollbar-color: #33415f transparent; }
+.tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 0 16px 8px; padding: 4px; background: #0d1527; border: 1px solid var(--border); border-radius: 10px; }
+.tab { display: flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; background: transparent; border: none; border-radius: 7px; padding: 8px 10px; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; }
+.tab:hover { color: var(--text); }
+.tab.on { background: #1a2640; color: var(--text); }
+.tab .dot { width: 9px; height: 9px; flex: none; }.tablebox { max-height: 330px; overflow-y: auto; margin: 0 8px; scrollbar-width: thin; scrollbar-color: #33415f transparent; }
 table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
 th { position: sticky; top: 0; background: var(--card); color: var(--dim); font-size: 10px; font-weight: 600; letter-spacing: 1px; padding: 6px 8px; text-align: center; z-index: 1; }
 th:first-child, td:first-child { text-align: left; }

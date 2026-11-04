@@ -22,7 +22,7 @@
   };
 
   // ---------- state ----------
-  const S = { period: 1, pos: 0, playing: false, speed: 1, data: {}, last: 0, key: '', dragging: false };
+  const S = { period: 1, pos: 0, playing: false, speed: 1, data: {}, last: 0, key: '', dragging: false, statsTeam: HOME };
   const events = META.events;   // sorted by (period, frame)
 
   // ---------- data loading (script tags so file:// works too) ----------
@@ -256,6 +256,7 @@
       const rows = Object.values(st).filter((r) => r.team === team && (r.toi > 0 || r.j === 'Go' || r.sog || r.g || r.a || r.pen));
       rows.sort((x, y) => (x.j === 'Go' ? -1 : y.j === 'Go' ? 1 : y.toi - x.toi || (+x.j) - (+y.j)));
       const tot = rows.reduce((t, r) => ({ sog: t.sog + r.sog, g: t.g + r.g, pen: t.pen + r.pen }), { sog: 0, g: 0, pen: 0 });
+      if (team !== S.statsTeam) continue;
       html += `<tr class="thead"><td colspan="2"><i style="background:${COLORS[team].fill}"></i>${team.toUpperCase()}</td>` +
         `<td colspan="4" class="tot">SOG ${tot.sog} · G ${tot.g} · PEN ${tot.pen}</td></tr>`;
       for (const r of rows) {
@@ -363,6 +364,17 @@
     markButtons();
   }));
   document.querySelectorAll('[data-period]').forEach((b) => b.addEventListener('click', () => goPeriod(+b.dataset.period)));
+
+  document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => {
+    S.statsTeam = b.dataset.team;
+    document.querySelectorAll('.tab').forEach((t) => {
+      const on = t === b;
+      t.classList.toggle('on', on);
+      t.setAttribute('aria-selected', on);
+    });
+    $('tablebox').scrollTop = 0;
+    S.key = '';   // force the stats table to re-render now, even while paused
+  }));
 
   const scrub = $('scrub');
   const seek = (ev) => {
