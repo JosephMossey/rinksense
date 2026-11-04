@@ -1,0 +1,5 @@
+# raw Big Data Cup files never go in the repo
+*.csv
+raw/
+__pycache__/
+.ipynb_checkpoints/
