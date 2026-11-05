@@ -65,6 +65,8 @@
     document.title = `${AWAY} @ ${HOME} · RINKSENSE`;
     $('matchup').textContent = `${AWAY} @ ${HOME}`;
     $('gameinfo').textContent = `${dateTxt}${PERIODS.includes(4) ? ' · Went to overtime' : ''}`;
+    const XG = window.RS_XG;
+    if (XG) $('xgNote').textContent = `xG model: logistic regression on ${XG.attempts} unblocked shots (${XG.goals} goals) from ${XG.games} games, using distance, angle, rebound, one-timer, traffic, deflection and power play. Tested on games it never saw: AUC ${XG.cv.auc}.`;
     for (const [id, v] of [['homeName', HOME], ['awayName', AWAY], ['legHome', HOME], ['legAway', AWAY], ['momHome', HOME], ['momAway', AWAY]]) $(id).textContent = v;
     $('statsTabs').innerHTML = [HOME, AWAY].map((t, i) =>
       `<button class="tab${i ? '' : ' on'}" role="tab" aria-selected="${!i}" data-team="${esc(t)}"><i class="dot ${i ? 'a' : 'd'}"></i>${esc(t)}</button>`).join('');
@@ -337,11 +339,35 @@
       return lo;
     }
 
-    function computeStats(nPast, period, clock) {
+    // Puck control through frame k: frames each player "had it" (nearest skater within 6 ft),
+    // earlier periods from per-period totals, this period counted from the per-frame owner array.
+    function puckControl(D, k) {
+      const byKey = {};
+      let home = 0, away = 0;
+      for (const p of PERIODS) {
+        if (p >= S.period) break;
+        const pm = META.periods[p];
+        if (pm.poss) { home += pm.poss[0]; away += pm.poss[1]; }
+        for (const key in pm.twp || {}) byKey[key] = (byKey[key] || 0) + pm.twp[key];
+      }
+      if (D.own) {
+        const cnt = new Int32Array(D.ents.length);
+        for (let f = 0; f <= k; f++) if (D.own[f] >= 0) cnt[D.own[f]]++;
+        cnt.forEach((c, e) => {
+          if (!c) return;
+          const [team, j] = D.ents[e];
+          byKey[team + '|' + j] = (byKey[team + '|' + j] || 0) + c;
+          if (team === HOME) home += c; else if (team === AWAY) away += c;
+        });
+      }
+      return { byKey, home, away };
+    }
+
+    function computeStats(nPast, period, clock, pc) {
       const st = {};
       const row = (team, j) => {
         const k = team + '|' + j;
-        return st[k] || (st[k] = { team, j, toi: 0, sog: 0, g: 0, a: 0, pen: 0 });
+        return st[k] || (st[k] = { team, j, toi: 0, sog: 0, g: 0, a: 0, pen: 0, xg: 0, twp: 0 });
       };
       for (const team of [HOME, AWAY]) for (const j of META.roster[team] || []) row(team, j);
       for (const [team, j, per, start, end] of META.shifts) {
@@ -353,11 +379,17 @@
         const e = events[i];
         if (!e.pl || !COLORS[e.t]) continue;
         const r = row(e.t, e.pl);
+        if (e.xg) r.xg += e.xg;
         if (e.ev === 'Goal') {
           r.g++; r.sog++;
           for (const a of e.ast || []) row(e.t, a).a++;
         } else if (e.ev === 'Shot' && e.d2 === 'On Net') r.sog++;
         else if (e.ev === 'Penalty Taken') r.pen++;
+      }
+      const fps = META.periods[period].fps || 15;
+      for (const key in pc.byKey) {
+        const [team, j] = key.split('|');
+        if (COLORS[team]) row(team, j).twp += pc.byKey[key] / fps;
       }
       return st;
     }
@@ -392,21 +424,21 @@
     }
 
     // Team stat strip in the header: SOG, shot attempts, penalties (events) and tracked possession.
-    function renderHeaderStats(D, k, nPast) {
-      const t = { [HOME]: { sog: 0, att: 0, pen: 0 }, [AWAY]: { sog: 0, att: 0, pen: 0 } };
+    function renderHeaderStats(D, k, nPast, pc) {
+      const t = { [HOME]: { sog: 0, att: 0, pen: 0, xg: 0 }, [AWAY]: { sog: 0, att: 0, pen: 0, xg: 0 } };
       for (let i = 0; i < nPast; i++) {
         const e = events[i], r = t[e.t];
         if (!r) continue;
+        if (e.xg) r.xg += e.xg;
         if (e.ev === 'Goal') { r.sog++; r.att++; }
         else if (e.ev === 'Shot') { r.att++; if (e.d2 === 'On Net') r.sog++; }
         else if (e.ev === 'Penalty Taken') r.pen++;
       }
-      for (const [id, v] of [['sogA', t[AWAY].sog], ['sogH', t[HOME].sog], ['attA', t[AWAY].att], ['attH', t[HOME].att], ['penA', t[AWAY].pen], ['penH', t[HOME].pen]]) $(id).textContent = v;
-      let ph = 0, pa = 0;
-      for (const p of PERIODS) {
-        if (p < S.period) { ph += META.periods[p].poss ? META.periods[p].poss[0] : 0; pa += META.periods[p].poss ? META.periods[p].poss[1] : 0; }
-      }
-      if (D.possH) { ph += D.possH[k]; pa += D.possA[k]; }
+      for (const [id, v] of [['sogA', t[AWAY].sog], ['sogH', t[HOME].sog], ['attA', t[AWAY].att], ['attH', t[HOME].att], ['penA', t[AWAY].pen], ['penH', t[HOME].pen],
+        ['xgA', t[AWAY].xg.toFixed(2)], ['xgH', t[HOME].xg.toFixed(2)]]) $(id).textContent = v;
+      const ph = pc.home, pa = pc.away;
+      $('twpH').textContent = fmt(ph / D.fps);
+      $('twpA').textContent = fmt(pa / D.fps);
       const tot = ph + pa;
       if (tot > 0) {
         const sh = Math.round((ph / tot) * 100);
@@ -493,20 +525,22 @@
       $('clock').textContent = fmt(clock);
       $('leftTime').textContent = `${fmt(clock)} left`;
       $('statsThrough').textContent = `through ${fmt(clock)} of ${pName(S.period)}`;
-      renderHeaderStats(D, k, nPast);
+      const pc = puckControl(D, k);
+      renderHeaderStats(D, k, nPast, pc);
       renderMomentum(clock, nPast);
 
-      const st = computeStats(nPast, S.period, clock);
+      const st = computeStats(nPast, S.period, clock, pc);
       const team = S.statsTeam;
       const rows = Object.values(st).filter((r) => r.team === team && (r.toi > 0 || r.j === 'Go' || r.sog || r.g || r.a || r.pen));
       rows.sort((x, y) => (x.j === 'Go' ? -1 : y.j === 'Go' ? 1 : y.toi - x.toi || (+x.j) - (+y.j)));
-      const tot = rows.reduce((t, r) => ({ sog: t.sog + r.sog, g: t.g + r.g, pen: t.pen + r.pen }), { sog: 0, g: 0, pen: 0 });
-      let html = `<tr class="thead"><td colspan="2"><i style="background:${COLORS[team].fill}"></i>${esc(team.toUpperCase())}</td>` +
-        `<td colspan="4" class="tot">SOG ${tot.sog} · G ${tot.g} · PEN ${tot.pen}</td></tr>`;
+      const tot = rows.reduce((t, r) => ({ sog: t.sog + r.sog, g: t.g + r.g, pen: t.pen + r.pen, xg: t.xg + r.xg }), { sog: 0, g: 0, pen: 0, xg: 0 });
+      let html = `<tr class="thead"><td colspan="3"><i style="background:${COLORS[team].fill}"></i>${esc(team.toUpperCase())}</td>` +
+        `<td colspan="5" class="tot">SOG ${tot.sog} · xG ${tot.xg.toFixed(2)} · G ${tot.g} · PEN ${tot.pen}</td></tr>`;
       for (const r of rows) {
         html += r.j === 'Go'
-          ? `<tr><td>G</td><td>${fmt(r.toi)}</td><td>–</td><td>–</td><td>–</td><td>–</td></tr>`
-          : `<tr><td>${esc(r.j)}</td><td>${fmt(r.toi)}</td><td>${r.sog}</td><td${r.g ? ' class="hl"' : ''}>${r.g}</td><td>${r.a}</td><td>${r.pen}</td></tr>`;
+          ? `<tr><td>G</td><td>${fmt(r.toi)}</td><td>–</td><td>–</td><td>–</td><td>–</td><td>–</td><td>–</td></tr>`
+          : `<tr><td>${esc(r.j)}</td><td>${fmt(r.toi)}</td><td class="twp">${r.twp >= 1 ? fmt(Math.round(r.twp)) : '0:00'}</td><td>${r.sog}</td>` +
+            `<td class="xg">${r.xg ? r.xg.toFixed(2) : '0.00'}</td><td${r.g ? ' class="hl"' : ''}>${r.g}</td><td>${r.a}</td><td>${r.pen}</td></tr>`;
       }
       $('statsBody').innerHTML = html;
 

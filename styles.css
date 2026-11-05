@@ -269,3 +269,13 @@ td.hl { color: var(--gold); font-weight: 600; }
   .legend { gap: 6px 12px; }
   .right { display: flex; }
 }
+
+/* xG + time with puck */
+.psub { font-size: 10.5px; color: var(--dim); margin-top: 6px; font-variant-numeric: tabular-nums; }
+.gstats { grid-template-columns: repeat(5, auto); }
+td.xg { color: #c9b6ff; }
+td.twp { color: var(--soft); }
+.grid { grid-template-columns: minmax(0, 1fr) 390px; }
+.foot + .foot { margin-top: 6px; }
+@media (max-width: 1100px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 760px) { .gstats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .gstat:nth-child(odd) { border-left: none; } .gstat:nth-child(even) { border-left: 1px solid var(--line); } .gstat:nth-child(n+3) { border-top: 1px solid var(--line); } }

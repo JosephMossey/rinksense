@@ -37,11 +37,13 @@
         <div class="gmeta"><h1 id="matchup">Game replay</h1><span id="gameinfo"></span></div>
       </div>
       <div class="gstats">
+        <div class="gstat"><div class="gl" title="Expected goals: the summed scoring chance of every unblocked shot, from RINKSENSE's shot model">Expected goals</div><div class="gv"><span id="xgA">0.00</span><span class="dash">–</span><span id="xgH">0.00</span></div></div>
         <div class="gstat"><div class="gl">Shots on goal</div><div class="gv"><span id="sogA">0</span><span class="dash">–</span><span id="sogH">0</span></div></div>
         <div class="gstat"><div class="gl">Shot attempts</div><div class="gv"><span id="attA">0</span><span class="dash">–</span><span id="attH">0</span></div></div>
         <div class="gstat poss"><div class="gl">Tracked possession</div>
           <div class="gv"><span id="possA">–</span><span class="dash">–</span><span id="possH">–</span></div>
           <div class="pbar" aria-hidden="true"><i class="pa" id="possBarA"></i><i class="ph" id="possBarH"></i></div>
+          <div class="psub"><span id="twpA">0:00</span> – <span id="twpH">0:00</span> with puck</div>
         </div>
         <div class="gstat"><div class="gl">Penalties</div><div class="gv"><span id="penA">0</span><span class="dash">–</span><span id="penH">0</span></div></div>
       </div>
@@ -112,11 +114,12 @@
         <div class="tabs" role="tablist" id="statsTabs"></div>
         <div class="tablebox" id="tablebox">
           <table>
-            <thead><tr><th>#</th><th>TOI</th><th>SOG</th><th>G</th><th>A*</th><th>PEN</th></tr></thead>
+            <thead><tr><th>#</th><th>TOI</th><th title="Time with puck">TWP</th><th>SOG</th><th title="Expected goals">xG</th><th>G</th><th>A*</th><th>PEN</th></tr></thead>
             <tbody id="statsBody"></tbody>
           </table>
         </div>
-        <p class="foot">TOI time on ice · SOG shots on goal · G goals · A assists · PEN penalties. *Assists are estimated from the last teammates to touch the puck before a goal.</p>
+        <p class="foot">TOI time on ice · TWP time with puck (nearest skater within 6 ft of the puck, while tracked) · SOG shots on goal · xG expected goals · G goals · A assists · PEN penalties. *Assists are estimated from the last teammates to touch the puck before a goal.</p>
+        <p class="foot" id="xgNote"></p>
       </div>
 
       <div class="card pbp">
@@ -127,6 +130,7 @@
   </main>
 </div>
 
+<script src="data/xg_model.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

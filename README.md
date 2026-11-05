@@ -8,7 +8,9 @@
 
 **Game replay (`game.html?g=<game-id>`)**
 - Smooth animated replay at 1x / 1.5x / 2x / 5x. You can change speed mid-play without restarting, and overtime is supported.
-- Live scoreboard that only changes at the tracked goal frame, plus a team stat strip: shots on goal, shot attempts, penalties, and tracked possession (share of time each team's skater is nearest the puck, within 8 ft).
+- Live scoreboard that only changes at the tracked goal frame, plus a team stat strip: expected goals, shots on goal, shot attempts, penalties, and tracked possession with time with puck.
+- **Expected goals (xG):** a ridge logistic regression trained on 900 unblocked shots (58 goals) from all 10 games. Its inputs are distance, angle, rebound (within 3 s), one-timer, traffic, deflection and power play. Tested leave-one-game-out (each game predicted by a model that never saw it), it scores AUC 0.78 with 12% lower log loss than a flat shooting-percentage baseline, and its predicted goals total 58.5 against 58 actual. The fitted model and these numbers are written to `data/xg_model.js`.
+- **Time with puck / possession:** in each tracked frame, the nearest skater within 6 ft of the puck has it. Summed per player that's time with puck (TWP); summed per team it's possession.
 - Momentum chart of shot attempts per 2 minutes, filled in only up to the current moment, and a short puck trail on the rink.
 - Players the broadcast camera isn't tracking stay on the ice (faded) using the shift chart, so the rink always shows who's actually out there.
 - Puck-carrier highlight: the nearest skater within 8 ft of the puck gets a gold ring.

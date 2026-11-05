@@ -107,7 +107,9 @@
       ${teamRow(g, g.home, 'h')}
       ${timeline(g)}
       <div class="gfoot">
-        <span class="gstat">SOG <b>${g.sog[g.away]}–${g.sog[g.home]}</b></span>        <span class="watch">Watch replay<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
+        <span class="gstat">SOG <b>${g.sog[g.away]}–${g.sog[g.home]}</b></span>
+        ${g.xg ? `<span class="gstat">xG <b>${g.xg[g.away].toFixed(1)}–${g.xg[g.home].toFixed(1)}</b></span>` : ''}
+        <span class="watch">Watch replay<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
       </div>
     </a>`;
   }
@@ -131,4 +133,7 @@
     renderGrid();
   }));
   renderGrid();
+
+  const XG = window.RS_XG;
+  if (XG && $('xgFoot')) $('xgFoot').textContent = `xG = expected goals, from a shot model trained on ${XG.attempts} unblocked shots (out-of-sample AUC ${XG.cv.auc}).`;
 })();

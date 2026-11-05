@@ -25,7 +25,10 @@ SCALE = 10              # store feet * 10 as ints (0.1 ft precision)
 GOAL_MARKER_TOL = 3     # seconds a tracking goal marker may differ from the event clock
 CLOCK_MEDIAN_FRAMES = 151  # ~5 s window (30 fps) for cleaning the tracking clock
 PERIOD_LENGTH = {1: 1200, 2: 1200, 3: 1200, 4: 300}   # regular-season OT is 5:00
-POSSESSION_FT = 8       # a skater within this distance of the puck (nearest one) has possession
+POSSESSION_FT = 6       # nearest skater within this distance of the puck has it (possession / time with puck)
+XG_FEATURES = ["dist", "angle", "rebound", "one_timer", "traffic", "deflection", "power_play"]
+XG_L2 = 2.0             # ridge penalty for the xG logistic regression (picked by leave-one-game-out)
+REBOUND_SECONDS = 3     # an attempt within this long after a same-team attempt counts as a rebound
 PUCK_OUTLIER_FT = 4    # puck points this far from their 7-frame median are treated as misreads
 PUCK_FILL_FRAMES = 30   # fill puck gaps up to 1 s (30 fps), never across a camera cut
 POSSESSION_EVENTS = {"Play", "Puck Recovery", "Takeaway", "Faceoff Win", "Zone Entry",
@@ -136,16 +139,18 @@ def build_period(path, period, home_team, away_team):
     for k, e, x, y in zip(pl["k"], pl["e"], pl["xi"], pl["yi"]):
         frames[k].extend((int(e), int(x), int(y)))
 
-    # Tracked possession: in each frame, the team of the nearest skater (not goalie) within
-    # POSSESSION_FT of the puck. Stored as running totals so the page can read "through now".
+    # Puck control: in each frame, the nearest tracked skater (not goalie) within POSSESSION_FT of
+    # the puck "has it" (-1 = nobody). Drives both team possession and player time with puck.
     puck_k = pd.DataFrame({"k": range(n), "pkx": [v / SCALE if v is not None else np.nan for v in px],
                            "pky": [v / SCALE if v is not None else np.nan for v in py]})
-    sk = pl[pl["jersey"] != "Go"][["k", "team", "Rink Location X (Feet)", "Rink Location Y (Feet)"]].merge(puck_k, on="k")
+    sk = pl[pl["jersey"] != "Go"][["k", "e", "team", "Rink Location X (Feet)", "Rink Location Y (Feet)"]].merge(puck_k, on="k")
     sk["d"] = np.hypot(sk["Rink Location X (Feet)"] - sk["pkx"], sk["Rink Location Y (Feet)"] - sk["pky"])
     sk = sk[sk["d"] <= POSSESSION_FT]
-    owner = sk.loc[sk.groupby("k")["d"].idxmin()].set_index("k")["team"].reindex(range(n))
-    poss_h = np.cumsum((owner == home_team).to_numpy()).astype(int)
-    poss_a = np.cumsum((owner == away_team).to_numpy()).astype(int)
+    win = sk.loc[sk.groupby("k")["d"].idxmin()].set_index("k")
+    own = win["e"].reindex(range(n)).fillna(-1).astype(int)
+    owner_team = win["team"].reindex(range(n))
+    poss_tot = [int((owner_team == home_team).sum()), int((owner_team == away_team).sum())]
+    twp = {f"{ents[e][0]}|{ents[e][1]}": int(c) for e, c in own[own >= 0].value_counts().items()}
 
     return {
         "period": period,
@@ -157,8 +162,9 @@ def build_period(path, period, home_team, away_team):
         "px": px,
         "py": py,
         "cuts": cuts,
-        "possH": poss_h.tolist(),
-        "possA": poss_a.tolist(),
+        "own": own.tolist(),
+        "possTot": poss_tot,
+        "twpTot": twp,
         "goalMarkers": [[g // KEEP_EVERY, int(full_clock[g])] for g in goal_frames],
     }
 
@@ -194,8 +200,105 @@ def write_js(path, var, obj):
         fh.write(";\n")
 
 
+# ---------- expected goals (xG) ----------
+
+def shot_features(ev):
+    """One row per shot attempt (Shot or Goal) in a game's events, indexed like `ev`.
+    Coordinates are flipped per team and period so every attempt attacks the +x net at (89, 0);
+    the attack direction comes from where that team shot from in that period."""
+    ev = ev.copy()
+    ev["clock_s"] = ev["Clock"].map(clock_to_sec)
+    att = ev[ev["Event"].isin(["Shot", "Goal"])].copy()
+    if att.empty:
+        return att
+    med = att.groupby(["Team", "Period"])["X_Coordinate"].median()
+    sgn = np.array([1 if med[(t, p)] >= 0 else -1 for t, p in zip(att["Team"], att["Period"])])
+    xa, ya = att["X_Coordinate"].to_numpy() * sgn, att["Y_Coordinate"].to_numpy() * sgn
+    att["dist"] = np.hypot(89 - xa, ya)
+    att["angle"] = np.degrees(np.arctan2(np.abs(ya), 89 - xa))
+    att["rebound"] = [int(((att["Period"] == p) & (att["Team"] == t) & (att["clock_s"] > c)
+                           & (att["clock_s"] <= c + REBOUND_SECONDS)).any())
+                      for p, t, c in zip(att["Period"], att["Team"], att["clock_s"])]
+    att["one_timer"] = att["Detail_4"].fillna(0).astype(int)
+    att["traffic"] = att["Detail_3"].fillna(0).astype(int)
+    att["deflection"] = (att["Detail_1"] == "Deflection").astype(int)
+    home = ev["Home_Team"].iloc[0]
+    own = np.where(att["Team"] == home, att["Home_Team_Skaters"], att["Away_Team_Skaters"])
+    opp = np.where(att["Team"] == home, att["Away_Team_Skaters"], att["Home_Team_Skaters"])
+    att["power_play"] = (own > opp).astype(int)
+    att["unblocked"] = att["Detail_2"] != "Blocked"
+    att["goal"] = (att["Event"] == "Goal").astype(int)
+    return att
+
+
+def _design(df, mu, sd):
+    X = df[XG_FEATURES].astype(float).to_numpy()
+    return np.c_[np.ones(len(X)), (X - mu) / sd]
+
+
+def _fit_logistic(X, y, lam):
+    w = np.zeros(X.shape[1])
+    R = lam * np.eye(len(w))
+    R[0, 0] = 0
+    for _ in range(50):
+        p = 1 / (1 + np.exp(-X @ w))
+        w += np.linalg.solve(X.T @ (X * (p * (1 - p))[:, None]) + R, X.T @ (y - p) - R @ w)
+    return w
+
+
+def _auc(y, p):
+    order = np.argsort(p)
+    ranks = np.empty(len(p))
+    ranks[order] = np.arange(1, len(p) + 1)
+    n1 = y.sum()
+    return float((ranks[y == 1].sum() - n1 * (n1 + 1) / 2) / (n1 * (len(y) - n1)))
+
+
+def fit_xg(src, prefixes):
+    """Fit a ridge logistic regression P(goal) on unblocked attempts from every game, and report
+    leave-one-game-out log loss / AUC so the model's quality is measured on unseen games."""
+    rows = []
+    for pre in prefixes:
+        f = shot_features(pd.read_csv(os.path.join(src, pre + "Events.csv")))
+        rows.append(f.assign(game=pre))
+    U = pd.concat(rows)
+    U = U[U["unblocked"]]
+    y = U["goal"].to_numpy()
+    X_all = U[XG_FEATURES].astype(float).to_numpy()
+    mu, sd = X_all.mean(0), X_all.std(0) + 1e-9
+    w = _fit_logistic(_design(U, mu, sd), y, XG_L2)
+
+    pred, base = np.zeros(len(U)), np.zeros(len(U))
+    for g in U["game"].unique():
+        tr = (U["game"] != g).to_numpy()
+        m, s = X_all[tr].mean(0), X_all[tr].std(0) + 1e-9
+        wg = _fit_logistic(_design(U[tr], m, s), y[tr], XG_L2)
+        pred[~tr] = 1 / (1 + np.exp(-_design(U[~tr], m, s) @ wg))
+        base[~tr] = y[tr].mean()
+    ll = lambda p: float(-np.mean(y * np.log(p) + (1 - y) * np.log(1 - p)))
+    model = {
+        "features": XG_FEATURES, "mu": mu.round(5).tolist(), "sd": sd.round(5).tolist(), "w": w.round(5).tolist(),
+        "attempts": int(len(U)), "goals": int(y.sum()), "games": len(prefixes),
+        "cv": {"auc": round(_auc(y, pred), 3), "logloss": round(ll(pred), 4), "baseline_logloss": round(ll(base), 4),
+               "xg_total": round(float(pred.sum()), 1)},
+    }
+    print(f"xG model: {len(U)} unblocked attempts, {int(y.sum())} goals | leave-one-game-out AUC {model['cv']['auc']}, "
+          f"log loss {model['cv']['logloss']} vs baseline {model['cv']['baseline_logloss']}")
+    return model
+
+
+def xg_for(feat, model):
+    """xG for each unblocked attempt in `feat` (blocked attempts get no xG)."""
+    U = feat[feat["unblocked"]]
+    if U.empty:
+        return {}
+    X = _design(U, np.array(model["mu"]), np.array(model["sd"]))
+    p = 1 / (1 + np.exp(-X @ np.array(model["w"])))
+    return dict(zip(U.index, np.round(p, 3)))
+
+
 def process_game(args):
-    src, prefix, out_root = args
+    src, prefix, out_root, model = args
     gid = game_id(prefix)
     out = os.path.join(out_root, "games", gid)
     os.makedirs(out, exist_ok=True)
@@ -213,6 +316,7 @@ def process_game(args):
     ev["pid"] = ev["Player_Id"].map(pid)
     ev["pid2"] = ev["Player_Id_2"].map(pid)
     ev["clock_s"] = ev["Clock"].map(clock_to_sec)
+    xg = xg_for(shot_features(ev), model)
 
     # Map each event to a playback frame. Goals use the tracking 'Goal Score = G' frame when
     # one sits within a few seconds of the event clock; everything else uses the first frame
@@ -253,6 +357,8 @@ def process_game(args):
                 rec["pl2"] = e["pid2"]
             if e["clock_s"] > clock[0] + 1:
                 rec["pre"] = 1   # happened before this period's tracking starts
+            if gi in xg:
+                rec["xg"] = float(xg[gi])
 
             if e["Event"] == "Goal":
                 rec["ast"] = estimate_assists(ev, gi)
@@ -279,14 +385,15 @@ def process_game(args):
         "id": gid, "date": str(ev["Date"].iloc[0]), "home": home, "away": away,
         "periods": {str(p): {"n": periods[p]["n"], "fps": periods[p]["fps"],
                              "start": periods[p]["clock"][0], "len": PERIOD_LENGTH[p],
-                             "poss": [periods[p]["possH"][-1], periods[p]["possA"][-1]]} for p in periods},
+                             "poss": periods[p]["possTot"], "twp": periods[p]["twpTot"]} for p in periods},
         "events": events, "shifts": shifts,
         "roster": {k: sorted(v, key=lambda j: (j != "Go", int(j) if j.isdigit() else 0)) for k, v in roster.items()},
     }
     write_js(os.path.join(out, "meta.js"), "RS_META", meta)
     for p in periods:
         P = dict(periods[p])
-        P.pop("goalMarkers")
+        for k in ("goalMarkers", "possTot", "twpTot"):
+            P.pop(k)
         write_js(os.path.join(out, f"p{p}.js"), f"RS_P{p}", P)
 
     goals = [e for e in events if e["ev"] == "Goal"]
@@ -297,6 +404,8 @@ def process_game(args):
         "score": {home: count(home, lambda e: e["ev"] == "Goal"), away: count(away, lambda e: e["ev"] == "Goal")},
         "sog": {home: count(home, sog), away: count(away, sog)},
         "pen": {home: count(home, lambda e: e["ev"] == "Penalty Taken"), away: count(away, lambda e: e["ev"] == "Penalty Taken")},
+        "xg": {t: round(sum(e.get("xg", 0) for e in events if e["t"] == t), 2) for t in (home, away)},
+        "poss": {home: sum(periods[p]["possTot"][0] for p in periods), away: sum(periods[p]["possTot"][1] for p in periods)},
         "ot": 4 in periods,
         "goals": [{"p": g["p"], "c": g["c"], "t": g["t"], "pl": g["pl"], "d1": g["d1"], "xy": g.get("xy")} for g in goals],
         "periodLength": {str(p): PERIOD_LENGTH[p] for p in periods},
@@ -320,10 +429,12 @@ def main():
                       if "checkpoint" not in f)
     if not prefixes:
         raise SystemExit(f"No *Events.csv files found in {a.src}")
-    print(f"Processing {len(prefixes)} games with {a.workers} workers...")
     os.makedirs(os.path.join(a.out, "games"), exist_ok=True)
+    model = fit_xg(a.src, prefixes)
+    write_js(os.path.join(a.out, "xg_model.js"), "RS_XG", model)
+    print(f"Processing {len(prefixes)} games with {a.workers} workers...")
     with ProcessPoolExecutor(a.workers) as pool:
-        games = list(pool.map(process_game, [(a.src, p, a.out) for p in prefixes]))
+        games = list(pool.map(process_game, [(a.src, p, a.out, model) for p in prefixes]))
     games.sort(key=lambda g: (g["date"], g["id"]))
     write_js(os.path.join(a.out, "games.js"), "RS_GAMES", games)
     print(f"Wrote {len(games)} games to {a.out}")
