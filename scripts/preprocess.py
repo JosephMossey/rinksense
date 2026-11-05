@@ -1,25 +1,34 @@
 """
-RINKSENSE preprocessing: Big Data Cup CSVs -> compact JS data files for the web viewer.
+RINKSENSE preprocessing: Big Data Cup CSVs -> compact JS data files for the website.
 
 Usage (Anaconda Prompt, from the repo folder):
     python scripts/preprocess.py --src "C:\\path\\to\\csv\\folder"
 
-Writes data/meta.js, data/p1.js, data/p2.js, data/p3.js. Each file sets a global so the
-page also works when opened straight from disk (file://), with no local server needed.
+Every game found in --src (one *Events.csv per game) is written to
+    data/games/<game-id>/meta.js, p1.js, p2.js, p3.js (+ p4.js for overtime)
+plus one index of all games at data/games.js for the NHL hub page.
+Each file sets a global, so the site also works opened straight from disk (file://).
 """
 import argparse
 import glob
 import json
 import math
 import os
+import re
+from concurrent.futures import ProcessPoolExecutor
 
+import numpy as np
 import pandas as pd
 
 KEEP_EVERY = 2          # 30 fps -> 15 fps; the page interpolates between frames
 SCALE = 10              # store feet * 10 as ints (0.1 ft precision)
+GOAL_MARKER_TOL = 3     # seconds a tracking goal marker may differ from the event clock
+CLOCK_MEDIAN_FRAMES = 151  # ~5 s window (30 fps) for cleaning the tracking clock
+PERIOD_LENGTH = {1: 1200, 2: 1200, 3: 1200, 4: 300}   # regular-season OT is 5:00
 POSSESSION_EVENTS = {"Play", "Puck Recovery", "Takeaway", "Faceoff Win", "Zone Entry",
                      "Dump In/Out", "Incomplete Play", "Shot"}
 OPP_POSSESSION = {"Play", "Puck Recovery", "Takeaway", "Faceoff Win", "Zone Entry", "Dump In/Out"}
+PERIOD_FILES = {1: "Tracking_P1.csv", 2: "Tracking_P2.csv", 3: "Tracking_P3.csv", 4: "Tracking_POT.csv"}
 
 
 def clock_to_sec(c):
@@ -40,43 +49,46 @@ def pid(v):
         return s
 
 
-def find(src, suffix):
-    hits = sorted(glob.glob(os.path.join(src, "*" + suffix)))
-    if not hits:
-        raise SystemExit(f"Could not find *{suffix} in {src}")
-    return hits[0]
+def game_id(prefix):
+    # "2025-10-11.Team.A.@.Team.D." -> "2025-10-11-a-at-d"
+    m = re.match(r"(\d{4}-\d{2}-\d{2})\.Team\.(\w+)\.@\.Team\.(\w+)\.", prefix)
+    return f"{m.group(1)}-{m.group(2).lower()}-at-{m.group(3).lower()}"
 
 
 def build_period(path, period, home_team, away_team):
     t = pd.read_csv(path, low_memory=False)
-    t["clock_s"] = t["Game Clock"].map(clock_to_sec)
-    t["clock_s"] = t["clock_s"].ffill().bfill()
-
-    # Frame order = order of Image Id as it appears in the file.
     ids = pd.unique(t["Image Id"])
     frame_of = {fid: i for i, fid in enumerate(ids)}
     t["f"] = t["Image Id"].map(frame_of)
+    t["clock_s"] = t["Game Clock"].map(clock_to_sec)
+
+    # Clock per (30 fps) frame. The raw clock has short stray blocks (e.g. a '20:00' run in the
+    # middle of a period, or '0:00' on pre-faceoff OT frames), so: fill gaps, compare each
+    # value with a ~5 s rolling median, swap out values that disagree by more than 2 s, then
+    # force it to only count down. Values that agree are kept exactly (20:00 stays 20:00).
+    raw_clock = t.groupby("f")["clock_s"].first().reindex(range(len(ids))).ffill().bfill()
+    med = raw_clock.rolling(CLOCK_MEDIAN_FRAMES, center=True, min_periods=1).median()
+    fixed = raw_clock.where((raw_clock - med).abs() <= 2, med.round()).to_numpy()
+    full_clock = np.minimum.accumulate(fixed).astype(int)
 
     goal_frames = sorted(set(t.loc[t["Goal Score"].astype(str) == "G", "f"].tolist()))
 
     keep = t[t["f"] % KEEP_EVERY == 0].copy()
     keep["k"] = keep["f"] // KEEP_EVERY
-    n = int(keep["k"].max()) + 1
+    n = (len(ids) - 1) // KEEP_EVERY + 1
+    clock = full_clock[::KEEP_EVERY][:n].tolist()
 
-    clock = keep.groupby("k")["clock_s"].first().reindex(range(n)).ffill().astype(int).tolist()
-
-    puck = keep[keep["Player or Puck"] == "Puck"].set_index("k")
+    puck = keep[keep["Player or Puck"] == "Puck"]
     px, py = [None] * n, [None] * n
-    for k, row in puck.iterrows():
-        x, y = row["Rink Location X (Feet)"], row["Rink Location Y (Feet)"]
+    for k, x, y in zip(puck["k"], puck["Rink Location X (Feet)"], puck["Rink Location Y (Feet)"]):
         if not (pd.isna(x) or pd.isna(y)):
             px[k], py[k] = int(round(x * SCALE)), int(round(y * SCALE))
 
     pl = keep[keep["Player or Puck"] == "Player"].copy()
     pl["team"] = pl["Team"].map({"Home": home_team, "Away": away_team})
     pl["jersey"] = pl["Player Jersey Number"].map(pid)
-    pl = pl.dropna(subset=["jersey", "Rink Location X (Feet)", "Rink Location Y (Feet)"])
-    ents = sorted(set(zip(pl["team"], pl["jersey"])), key=lambda e: (e[0], e[1]))
+    pl = pl.dropna(subset=["team", "jersey", "Rink Location X (Feet)", "Rink Location Y (Feet)"])
+    ents = sorted(set(zip(pl["team"], pl["jersey"])))
     ent_idx = {e: i for i, e in enumerate(ents)}
     pl["e"] = [ent_idx[(a, b)] for a, b in zip(pl["team"], pl["jersey"])]
     pl["xi"] = (pl["Rink Location X (Feet)"] * SCALE).round().astype(int)
@@ -95,7 +107,7 @@ def build_period(path, period, home_team, away_team):
         "frames": frames,
         "px": px,
         "py": py,
-        "goalFrames": [g // KEEP_EVERY for g in goal_frames],
+        "goalMarkers": [[g // KEEP_EVERY, int(full_clock[g])] for g in goal_frames],
     }
 
 
@@ -123,44 +135,61 @@ def estimate_assists(ev, gi):
     return out
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--src", default="raw", help="folder with the Big Data Cup CSVs")
-    ap.add_argument("--out", default="data")
-    a = ap.parse_args()
-    os.makedirs(a.out, exist_ok=True)
+def write_js(path, var, obj):
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(f"window.{var}=")
+        json.dump(obj, fh, separators=(",", ":"))
+        fh.write(";\n")
 
-    ev = pd.read_csv(find(a.src, "Events.csv"))
-    sh = pd.read_csv(find(a.src, "Shifts.csv"))
+
+def process_game(args):
+    src, prefix, out_root = args
+    gid = game_id(prefix)
+    out = os.path.join(out_root, "games", gid)
+    os.makedirs(out, exist_ok=True)
+
+    ev = pd.read_csv(os.path.join(src, prefix + "Events.csv"))
+    sh = pd.read_csv(os.path.join(src, prefix + "Shifts.csv"))
     home, away = ev["Home_Team"].iloc[0], ev["Away_Team"].iloc[0]
-    title = os.path.basename(find(a.src, "Events.csv")).replace(".Events.csv", "").replace(".", " ")
 
     periods = {}
-    for p in (1, 2, 3):
-        print(f"Period {p}...")
-        periods[p] = build_period(find(a.src, f"Tracking_P{p}.csv"), p, home, away)
+    for p, suffix in PERIOD_FILES.items():
+        path = os.path.join(src, prefix + suffix)
+        if os.path.exists(path):
+            periods[p] = build_period(path, p, home, away)
 
     ev["pid"] = ev["Player_Id"].map(pid)
     ev["pid2"] = ev["Player_Id_2"].map(pid)
     ev["clock_s"] = ev["Clock"].map(clock_to_sec)
 
-    # Map each event to a playback frame. Goals use the tracking 'Goal Score = G' frame;
-    # other events use the first frame at (or after) their clock second. Frames are kept
-    # non-decreasing in file order so play-by-play order matches the event log.
+    # Map each event to a playback frame. Goals use the tracking 'Goal Score = G' frame when
+    # one sits within a few seconds of the event clock; everything else uses the first frame
+    # at (or after) its clock second. Frames stay non-decreasing in event-log order.
     events = []
-    for p in (1, 2, 3):
+    markers_used = 0
+    for p in sorted(periods):
         P = periods[p]
         clock = P["clock"]
-        goals_left = list(P["goalFrames"])
-        last = 0
+        markers = list(P["goalMarkers"])
         sub = ev[ev["Period"] == p]
+        goal_frame = {}
+        for gi, e in sub[sub["Event"] == "Goal"].iterrows():
+            near = [m for m in markers if abs(m[1] - e["clock_s"]) <= GOAL_MARKER_TOL]
+            if near:
+                m = min(near, key=lambda m: abs(m[1] - e["clock_s"]))
+                markers.remove(m)
+                goal_frame[gi] = m[0]
+        markers_used += len(goal_frame)
+        last = 0
+        goal_idx = [gi for gi in sub.index if sub.loc[gi, "Event"] == "Goal"]
         for gi, e in sub.iterrows():
-            if e["Event"] == "Goal" and goals_left:
-                f = goals_left.pop(0)
+            if gi in goal_frame:
+                f = goal_frame[gi]
             else:
                 f = next((k for k, c in enumerate(clock) if c <= e["clock_s"]), P["n"] - 1)
-                if goals_left:  # never place a pre-goal event after the next goal
-                    f = min(f, goals_left[0])
+                nxt = next((goal_frame[g] for g in goal_idx if g > gi and g in goal_frame), None)
+                if nxt is not None:  # never place a pre-goal event after the next goal
+                    f = min(f, nxt)
             f = max(f, last)
             last = f
             rec = {
@@ -170,44 +199,81 @@ def main():
             }
             if e["pid2"]:
                 rec["pl2"] = e["pid2"]
+            if e["clock_s"] > clock[0] + 1:
+                rec["pre"] = 1   # happened before this period's tracking starts
+
             if e["Event"] == "Goal":
                 rec["ast"] = estimate_assists(ev, gi)
+                x, y = e["X_Coordinate"], e["Y_Coordinate"]
+                if not (pd.isna(x) or pd.isna(y)):
+                    # mirror so every goal is shown attacking the right-hand net
+                    rec["xy"] = [round(abs(x), 1), round(y if x >= 0 else -y, 1)]
             events.append(rec)
 
     shifts = []
     for _, s in sh.iterrows():
-        shifts.append([s["Team"], pid(s["Player_Id"]), int(s["period"]),
-                       clock_to_sec(s["start_clock"]), clock_to_sec(s["end_clock"])])
+        if int(s["period"]) in periods and pid(s["Player_Id"]):
+            shifts.append([s["Team"], pid(s["Player_Id"]), int(s["period"]),
+                           clock_to_sec(s["start_clock"]), clock_to_sec(s["end_clock"])])
 
     roster = {home: set(), away: set()}
     for team, j, *_ in shifts:
         roster[team].add(j)
     for e in events:
-        if e["pl"]:
+        if e["pl"] and e["t"] in roster:
             roster[e["t"]].add(e["pl"])
 
     meta = {
-        "title": title, "date": str(ev["Date"].iloc[0]), "home": home, "away": away,
-        "periods": {str(p): {"n": periods[p]["n"], "fps": periods[p]["fps"]} for p in periods},
+        "id": gid, "date": str(ev["Date"].iloc[0]), "home": home, "away": away,
+        "periods": {str(p): {"n": periods[p]["n"], "fps": periods[p]["fps"],
+                             "start": periods[p]["clock"][0], "len": PERIOD_LENGTH[p]} for p in periods},
         "events": events, "shifts": shifts,
         "roster": {k: sorted(v, key=lambda j: (j != "Go", int(j) if j.isdigit() else 0)) for k, v in roster.items()},
     }
+    write_js(os.path.join(out, "meta.js"), "RS_META", meta)
+    for p in periods:
+        P = dict(periods[p])
+        P.pop("goalMarkers")
+        write_js(os.path.join(out, f"p{p}.js"), f"RS_P{p}", P)
 
-    def write(name, var, obj):
-        path = os.path.join(a.out, name)
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(f"window.{var}=")
-            json.dump(obj, fh, separators=(",", ":"))
-            fh.write(";\n")
-        print(f"  {path}: {os.path.getsize(path) / 1e6:.1f} MB")
+    goals = [e for e in events if e["ev"] == "Goal"]
+    count = lambda team, pred: sum(1 for e in events if e["t"] == team and pred(e))
+    sog = lambda e: e["ev"] == "Goal" or (e["ev"] == "Shot" and e["d2"] == "On Net")
+    summary = {
+        "id": gid, "date": meta["date"], "home": home, "away": away,
+        "score": {home: count(home, lambda e: e["ev"] == "Goal"), away: count(away, lambda e: e["ev"] == "Goal")},
+        "sog": {home: count(home, sog), away: count(away, sog)},
+        "pen": {home: count(home, lambda e: e["ev"] == "Penalty Taken"), away: count(away, lambda e: e["ev"] == "Penalty Taken")},
+        "ot": 4 in periods,
+        "goals": [{"p": g["p"], "c": g["c"], "t": g["t"], "pl": g["pl"], "d1": g["d1"], "xy": g.get("xy")} for g in goals],
+        "periodLength": {str(p): PERIOD_LENGTH[p] for p in periods},
+        "trackStart": {str(p): periods[p]["clock"][0] for p in periods},
+        "frames": sum(P["n"] for P in periods.values()) * KEEP_EVERY,
+        "events": len(events),
+    }
+    print(f"  {gid}: {away} {summary['score'][away]} @ {home} {summary['score'][home]}"
+          f"{' (OT)' if summary['ot'] else ''}  periods={sorted(periods)}  goals synced to tracking={markers_used}/{len(goals)}")
+    return summary
 
-    write("meta.js", "RS_META", meta)
-    for p in (1, 2, 3):
-        write(f"p{p}.js", f"RS_P{p}", periods[p])
 
-    for e in events:
-        if e["ev"] == "Goal":
-            print(f"  Goal P{e['p']} {e['c']//60}:{e['c']%60:02d} {e['t']} #{e['pl']} A*={e['ast']} frame={e['f']}")
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--src", default="raw", help="folder with the Big Data Cup CSVs")
+    ap.add_argument("--out", default="data")
+    ap.add_argument("--workers", type=int, default=max(1, min(5, (os.cpu_count() or 2) - 1)))
+    a = ap.parse_args()
+
+    prefixes = sorted(os.path.basename(f)[: -len("Events.csv")] for f in glob.glob(os.path.join(a.src, "*Events.csv"))
+                      if "checkpoint" not in f)
+    if not prefixes:
+        raise SystemExit(f"No *Events.csv files found in {a.src}")
+    print(f"Processing {len(prefixes)} games with {a.workers} workers...")
+    os.makedirs(os.path.join(a.out, "games"), exist_ok=True)
+    with ProcessPoolExecutor(a.workers) as pool:
+        games = list(pool.map(process_game, [(a.src, p, a.out) for p in prefixes]))
+    games.sort(key=lambda g: (g["date"], g["id"]))
+    write_js(os.path.join(a.out, "games.js"), "RS_GAMES", games)
+    print(f"Wrote {len(games)} games to {a.out}")
 
 
 if __name__ == "__main__":

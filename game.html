@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Game Replay · RINKSENSE</title>
+<meta name="description" content="Animated player and puck tracking replay with a live scoreboard, player stats and play-by-play.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<nav class="sitenav">
+  <div class="navin">
+    <a class="brand" href="index.html">RINKSENSE</a>
+    <div class="sports">
+      <a class="sport on" href="index.html">NHL</a>
+      <span class="sport soon">MLB<em>Soon</em></span>
+      <span class="sport soon">NBA<em>Soon</em></span>
+      <span class="sport soon">NFL<em>Soon</em></span>
+    </div>
+  </div>
+</nav>
+
+<div class="wrap">
+  <header class="gamehead">
+    <a class="back" href="index.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>All NHL games</a>
+    <div class="gametitle">
+      <h1 id="matchup">Game replay</h1>
+      <div class="gameinfo" id="gameinfo"></div>
+    </div>
+  </header>
+
+  <main class="grid">
+    <section class="left">
+      <div class="card scoreboard">
+        <div class="team home"><span class="bar d"></span><div><div class="tname" id="homeName">HOME</div><div class="tsub">Home</div></div></div>
+        <div class="num" id="scoreD">0</div>
+        <div class="mid"><div class="plabel" id="plabel">PERIOD 1</div><div class="clock" id="clock">20:00</div></div>
+        <div class="num" id="scoreA">0</div>
+        <div class="team away"><div><div class="tname" id="awayName">AWAY</div><div class="tsub">Away</div></div><span class="bar a"></span></div>
+      </div>
+
+      <div class="card rinkcard">
+        <div class="rinkbox">
+          <svg id="rink" viewBox="0 0 840 380" aria-label="Rink tracking view">
+            <defs>
+              <clipPath id="boards"><rect x="20" y="20" width="800" height="340" rx="112" ry="112"/></clipPath>
+              <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter>
+            </defs>
+            <g id="rinkLines"></g>
+            <g id="players"></g>
+            <g id="puckLayer"></g>
+          </svg>
+          <div class="goalBanner" id="goalBanner" aria-live="polite">
+            <div class="gword">GOAL</div>
+            <div><div class="gwho" id="gWho"></div><div class="gwhat" id="gWhat"></div></div>
+          </div>
+          <div class="covnote" id="covNote"></div>
+          <div class="camnote" id="camNote" title="Tracking comes from the broadcast camera, so players outside the shot aren't tracked. Faded players are estimated positions.">Limited camera view</div>
+          <div class="loading" id="loading">Loading tracking data…</div>
+        </div>
+      </div>
+
+      <div class="card playback">
+        <div class="prow">
+          <button class="playbtn" id="playBtn" aria-label="Play">
+            <svg viewBox="0 0 24 24" id="playIcon"><path d="M8 5v14l11-7z"/></svg>
+          </button>
+          <button class="stopbtn" id="stopBtn" aria-label="Stop"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg></button>
+          <div class="scrub" id="scrub">
+            <div class="track"><div class="fill" id="fill"></div></div>
+            <div class="ticks" id="ticks"></div>
+            <div class="knob" id="knob"></div>
+          </div>
+          <div class="left-time" id="leftTime">20:00 left</div>
+        </div>
+        <div class="prow2">
+          <div class="seg" id="periodBtns"><span class="slabel">PERIOD</span></div>
+          <div class="seg"><span class="slabel">SPEED</span>
+            <button class="pill" data-speed="1">1x</button><button class="pill" data-speed="1.5">1.5x</button><button class="pill" data-speed="2">2x</button><button class="pill" data-speed="5">5x</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="right">
+      <div class="card stats">
+        <div class="chead"><span class="ctitle">PLAYER STATS</span><span class="csub" id="statsThrough"></span></div>
+        <div class="tabs" role="tablist" id="statsTabs"></div>
+        <div class="tablebox" id="tablebox">
+          <table>
+            <thead><tr><th>#</th><th>TOI</th><th>SOG</th><th>G</th><th>A*</th><th>PEN</th></tr></thead>
+            <tbody id="statsBody"></tbody>
+          </table>
+        </div>
+        <p class="foot">TOI time on ice · SOG shots on goal · G goals · A assists · PEN penalties. *Assists are estimated from the last teammates to touch the puck before a goal.</p>
+      </div>
+
+      <div class="card pbp">
+        <div class="chead"><span class="ctitle">PLAY-BY-PLAY</span></div>
+        <ul id="pbpList"></ul>
+      </div>
+
+      <div class="card legend">
+        <div class="chead"><span class="ctitle">LEGEND</span></div>
+        <div class="lrow">
+          <span><i class="dot d"></i><b id="legHome">Home</b></span>
+          <span><i class="dot a"></i><b id="legAway">Away</b></span>
+          <span><i class="dot d ring"></i>Has the puck</span>
+          <span><i class="puckdot"></i>Puck</span>
+        </div>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
