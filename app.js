@@ -34,6 +34,8 @@
     const HOLD_SECONDS = 1.5;      // after a player leaves the shot, keep them (faded) this long
     const GHOST_AFTER_FRAMES = 5;  // dropouts longer than ~1/3 s are drawn faded (position is a guess)
     const LIMITED_VIEW_PLAYERS = 4; // show the "limited camera view" chip at or below this many
+    const CARRIER_STICKY_FT = 1.5;  // a new skater must be this much closer to take the gold ring...
+    const CARRIER_SWITCH_SECONDS = 0.3; // ...for this long (tracking time)
     const COLORS = { [HOME]: { fill: '#2f6bff', text: '#ffffff' }, [AWAY]: { fill: '#ff8a80', text: '#0b1220' } };
     const PERIODS = Object.keys(META.periods).map(Number).sort((a, b) => a - b);
     const LAST = PERIODS[PERIODS.length - 1];
@@ -88,7 +90,38 @@
         }
       });
       D.tracks = tmp.map((t) => ({ k: Int32Array.from(t.k), x: Float32Array.from(t.x), y: Float32Array.from(t.y) }));
+      D.cuts = Int32Array.from(D.cuts || []);
+      // each player's on-ice windows this period, from the shift chart: [[startClock, endClock], ...]
+      const byKey = {};
+      for (const [team, j, per, start, end] of META.shifts) {
+        if (per === D.period) (byKey[team + '|' + j] = byKey[team + '|' + j] || []).push([start, end]);
+      }
+      D.shiftWin = D.ents.map(([team, j]) => byKey[team + '|' + j] || []);
+      D.teamWins = {};
+      for (const [team, , per, start, end] of META.shifts) {
+        if (per === D.period) (D.teamWins[team] = D.teamWins[team] || []).push([start, end]);
+      }
       return D;
+    }
+
+    // how many players the shift chart has on the ice for a team at this clock
+    function onIceCount(D, team, clock) {
+      let n = 0;
+      for (const w of D.teamWins[team] || []) if (clock <= w[0] && clock >= w[1]) n++;
+      return n;
+    }
+
+    // true if a camera cut sits between frames a and b (a < b): nothing may be interpolated across it
+    function cutBetween(D, a, b) {
+      if (b <= a || !D.cuts.length) return false;
+      const i = lastAtOrBefore(D.cuts, b - 1);
+      return i >= 0 && D.cuts[i] >= a;
+    }
+
+    // the shift window the player is in at this clock, or null if they're on the bench
+    function shiftAt(wins, clock) {
+      for (const w of wins) if (clock <= w[0] && clock >= w[1]) return w;
+      return null;
     }
 
     // index of the last sample at or before frame `pos` (-1 if none)
@@ -145,9 +178,19 @@
       return t;
     }
 
-    function puckAt(D, k) {
-      for (let j = k; j >= Math.max(0, k - PUCK_HOLD_FRAMES); j--) {
-        if (D.px[j] !== null) return [D.px[j] / 10, D.py[j] / 10, j];
+    // Puck: the data already has short gaps filled (preprocessing). Interpolate between real
+    // samples, never across a camera cut; across a missing stretch, briefly hold then hide.
+    function puckAt(D, k0, k1, a) {
+      if (D.px[k0] !== null) {
+        const x0 = D.px[k0] / 10, y0 = D.py[k0] / 10;
+        if (k1 !== k0 && D.px[k1] !== null && !cutBetween(D, k0, k1)) {
+          return { x: x0 + (D.px[k1] / 10 - x0) * a, y: y0 + (D.py[k1] / 10 - y0) * a, held: false };
+        }
+        return { x: x0, y: y0, held: false };
+      }
+      for (let j = k0 - 1; j >= Math.max(0, k0 - PUCK_HOLD_FRAMES); j--) {
+        if (cutBetween(D, j, k0)) break;
+        if (D.px[j] !== null) return { x: D.px[j] / 10, y: D.py[j] / 10, held: true };
       }
       return null;
     }
@@ -156,51 +199,92 @@
       const k0 = Math.min(Math.floor(S.pos), D.n - 1);
       const k1 = Math.min(k0 + 1, D.n - 1);
       const a = S.pos - k0;
+      const clock = D.clock[k0];
 
-      let pk = null;
-      const p0 = puckAt(D, k0);
-      if (p0) {
-        pk = [p0[0], p0[1]];
-        if (p0[2] === k0 && D.px[k1] !== null) {
-          pk = [p0[0] + (D.px[k1] / 10 - p0[0]) * a, p0[1] + (D.py[k1] / 10 - p0[1]) * a];
-        }
+      // quick fade at a camera cut so the jump reads as a camera change, not a glitch
+      if (S.lastK !== undefined && k0 > S.lastK && k0 - S.lastK < 30 && cutBetween(D, S.lastK, k0)) {
+        for (const id of ['players', 'puckLayer']) $(id).animate([{ opacity: 0.1 }, { opacity: 1 }], { duration: 280, easing: 'ease-out' });
       }
+      S.lastK = k0;
 
-      const seen = new Map();   // token -> faded?
-      let carrier = null, best = CARRIER_MAX_FT, tracked = 0;
+      const pk = puckAt(D, k0, k1, a);
+
+      const list = [];          // candidates to draw: {e, x, y, faded, prio, age}
+      let tracked = 0;
       const bridge = BRIDGE_SECONDS * D.fps, hold = HOLD_SECONDS * D.fps;
       D.tracks.forEach((tr, e) => {
         const i = lastAtOrBefore(tr.k, S.pos);
-        if (i < 0) return;
-        const kA = tr.k[i];
+        const kA = i >= 0 ? tr.k[i] : -Infinity;
         const hasNext = i + 1 < tr.k.length;
         const kB = hasNext ? tr.k[i + 1] : Infinity;
-        let x, y, faded;
-        if (kA === k0 && kB === k1 && k1 !== k0) {          // tracked now: normal interpolation
+        // prio: 3 tracked now, 2 short glide, 1 faded but on the ice per shifts, 0 fading off
+        let x, y, faded, prio, age = 0;
+        if (i >= 0 && kA === k0 && kB === k1 && k1 !== k0 && !cutBetween(D, k0, k1)) {   // tracked now
           x = tr.x[i] + (tr.x[i + 1] - tr.x[i]) * a;
           y = tr.y[i] + (tr.y[i + 1] - tr.y[i]) * a;
-          faded = false;
-          tracked++;
-        } else if (kA === k0 && !hasNext) {                  // last ever sample
-          x = tr.x[i]; y = tr.y[i]; faded = false; tracked++;
-        } else if (hasNext && kB - kA <= bridge) {           // short dropout: glide across the gap
+          faded = false; prio = 3;
+        } else if (i >= 0 && kA === k0) {                                      // tracked now, no next step
+          x = tr.x[i]; y = tr.y[i]; faded = false; prio = 3;
+        } else if (i >= 0 && hasNext && kB - kA <= bridge && !cutBetween(D, kA, kB)) {  // short dropout: glide
           const f = (S.pos - kA) / (kB - kA);
           x = tr.x[i] + (tr.x[i + 1] - tr.x[i]) * f;
           y = tr.y[i] + (tr.y[i + 1] - tr.y[i]) * f;
           faded = kB - kA > GHOST_AFTER_FRAMES;
-          if (!faded) tracked++;
-        } else if (S.pos - kA <= hold) {                     // left the camera view: fade out in place
-          x = tr.x[i]; y = tr.y[i]; faded = true;
-        } else return;
-        const [team, jersey] = D.ents[e];
-        const t = token(team, jersey);
-        seen.set(t, faded);
-        t.g.setAttribute('transform', `translate(${px(x).toFixed(1)},${py(y).toFixed(1)})`);
-        if (pk && !faded && jersey !== 'Go') {
-          const dd = Math.hypot(x - pk[0], y - pk[1]);
-          if (dd < best) { best = dd; carrier = t; }
+          prio = faded ? 2 : 3;
+        } else {
+          // Not tracked right now. If the shift chart says they're on the ice, keep them on the
+          // rink (faded) at their last spot from this shift, or where they next appear in it.
+          const w = shiftAt(D.shiftWin[e], clock);
+          if (w && i >= 0 && D.clock[kA] <= w[0] && !cutBetween(D, kA, k0)) {
+            x = tr.x[i]; y = tr.y[i]; faded = true; prio = 1; age = S.pos - kA;
+          } else if (w && hasNext && D.clock[kB] >= w[1] && !cutBetween(D, k0, kB)) {
+            x = tr.x[i + 1]; y = tr.y[i + 1]; faded = true; prio = 1; age = kB - S.pos;
+          } else if (!w && i >= 0 && S.pos - kA <= hold && !cutBetween(D, kA, k0)) {   // heading off: fade out
+            x = tr.x[i]; y = tr.y[i]; faded = true; prio = 0; age = S.pos - kA;
+          } else return;
         }
+        if (prio === 3) tracked++;
+        list.push({ e, x, y, faded, prio, age });
       });
+
+      // Never draw more players per team than the shift chart has on the ice (jersey misreads can
+      // otherwise put the same skater on the rink twice). Tracked players win, then the freshest.
+      const byTeam = {};
+      for (const it of list) (byTeam[D.ents[it.e][0]] = byTeam[D.ents[it.e][0]] || []).push(it);
+      const seen = new Map();   // token -> faded?
+      const cand = [];          // [token, distance to puck] for carrier selection
+      for (const team in byTeam) {
+        const items = byTeam[team].sort((p1, p2) => p2.prio - p1.prio || p1.age - p2.age);
+        const nTracked = items.filter((it) => it.prio === 3).length;
+        const cap = Math.max(nTracked, onIceCount(D, team, clock) || 6);
+        for (const it of items.slice(0, cap)) {
+          const [tm, jersey] = D.ents[it.e];
+          const t = token(tm, jersey);
+          seen.set(t, it.faded);
+          t.g.setAttribute('transform', `translate(${px(it.x).toFixed(1)},${py(it.y).toFixed(1)})`);
+          if (pk && !pk.held && !it.faded && jersey !== 'Go') cand.push([t, Math.hypot(it.x - pk.x, it.y - pk.y)]);
+        }
+      }
+
+      // Carrier = nearest skater within range, but sticky: a challenger has to be clearly closer
+      // (CARRIER_STICKY_FT) for a moment (CARRIER_SWITCH_SECONDS) before the ring moves to them.
+      let carrier = null;
+      let best = null;
+      for (const c of cand) if (c[1] < CARRIER_MAX_FT && (!best || c[1] < best[1])) best = c;
+      const prev = cand.find((c) => c[0] === S.carrier);
+      if (prev && prev[1] < CARRIER_MAX_FT) {
+        carrier = prev[0];
+        if (best && best[0] !== prev[0] && best[1] + CARRIER_STICKY_FT < prev[1]) {
+          if (S.challenger !== best[0] || S.pos < S.challengeFrom) { S.challenger = best[0]; S.challengeFrom = S.pos; }
+          if (S.pos - S.challengeFrom >= CARRIER_SWITCH_SECONDS * D.fps) { carrier = best[0]; S.challenger = null; }
+        } else S.challenger = null;
+      } else if (best) {
+        carrier = best[0];
+        S.challenger = null;
+      } else if (pk && pk.held) {
+        carrier = seen.has(S.carrier) && !seen.get(S.carrier) ? S.carrier : null;   // puck briefly lost: keep ring
+      }
+      S.carrier = carrier;
       // only flip the chip after the state has held for ~0.5 s, so it doesn't flicker
       const limited = tracked <= LIMITED_VIEW_PLAYERS;
       if (limited === S.limited) S.limitedFrom = S.pos;
@@ -223,8 +307,8 @@
       if (carrier && playersLayer.lastChild !== carrier.g) playersLayer.appendChild(carrier.g);
 
       if (pk) {
-        puck.setAttribute('cx', px(pk[0]).toFixed(1));
-        puck.setAttribute('cy', py(pk[1]).toFixed(1));
+        puck.setAttribute('cx', px(pk.x).toFixed(1));
+        puck.setAttribute('cy', py(pk.y).toFixed(1));
         puck.setAttribute('visibility', 'visible');
       } else puck.setAttribute('visibility', 'hidden');
     }
@@ -389,6 +473,8 @@
       $('covNote').classList.toggle('show', !!late);
       for (const t of pool.values()) t.g.remove();
       pool.clear();
+      S.lastK = undefined;
+      S.carrier = null;
       markButtons();
       drawTicks(D);
       render();

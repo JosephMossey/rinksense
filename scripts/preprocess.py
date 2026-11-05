@@ -25,6 +25,8 @@ SCALE = 10              # store feet * 10 as ints (0.1 ft precision)
 GOAL_MARKER_TOL = 3     # seconds a tracking goal marker may differ from the event clock
 CLOCK_MEDIAN_FRAMES = 151  # ~5 s window (30 fps) for cleaning the tracking clock
 PERIOD_LENGTH = {1: 1200, 2: 1200, 3: 1200, 4: 300}   # regular-season OT is 5:00
+PUCK_OUTLIER_FT = 4     # puck points this far from their 7-frame median are treated as misreads
+PUCK_FILL_FRAMES = 30   # fill puck gaps up to 1 s (30 fps), never across a camera cut
 POSSESSION_EVENTS = {"Play", "Puck Recovery", "Takeaway", "Faceoff Win", "Zone Entry",
                      "Dump In/Out", "Incomplete Play", "Shot"}
 OPP_POSSESSION = {"Play", "Puck Recovery", "Takeaway", "Faceoff Win", "Zone Entry", "Dump In/Out"}
@@ -73,18 +75,53 @@ def build_period(path, period, home_team, away_team):
 
     goal_frames = sorted(set(t.loc[t["Goal Score"].astype(str) == "G", "f"].tolist()))
 
-    keep = t[t["f"] % KEEP_EVERY == 0].copy()
-    keep["k"] = keep["f"] // KEEP_EVERY
+    # Camera cuts: the Image Id sequence skips when the broadcast footage jumps ahead
+    # (stoppages, replays). Positions legitimately teleport there, so nothing should be
+    # interpolated across one. cut_after[f] = True means a cut between frame f and f+1.
+    img_no = np.array([int(str(s).rsplit("_", 1)[-1]) for s in ids])
+    cut_after = np.append(np.diff(img_no) != 1, False)
+    segment = np.concatenate([[0], np.cumsum(cut_after[:-1])])   # footage segment of each frame
+
     n = (len(ids) - 1) // KEEP_EVERY + 1
     clock = full_clock[::KEEP_EVERY][:n].tolist()
+    # downsampled frame k covers raw frames [k*KEEP_EVERY, (k+1)*KEEP_EVERY)
+    cuts = sorted({int(f // KEEP_EVERY) for f in np.nonzero(cut_after)[0] if f // KEEP_EVERY < n - 1})
 
-    puck = keep[keep["Player or Puck"] == "Puck"]
+    # Puck, cleaned at full 30 fps within each footage segment: drop points that sit far from
+    # their neighbours (impossible jumps), fill gaps up to PUCK_FILL_FRAMES, light smoothing.
+    pk = t[t["Player or Puck"] == "Puck"].drop_duplicates("f").set_index("f").reindex(range(len(ids)))
+    pxs = pk["Rink Location X (Feet)"].astype(float)
+    pys = pk["Rink Location Y (Feet)"].astype(float)
+    seg = pd.Series(segment)
+    clean_x, clean_y = pxs.copy(), pys.copy()
+    for _, idx in seg.groupby(seg).groups.items():
+        x, y = pxs.loc[idx], pys.loc[idx]
+        mx = x.rolling(7, center=True, min_periods=3).median()
+        my = y.rolling(7, center=True, min_periods=3).median()
+        bad = np.hypot(x - mx, y - my) > PUCK_OUTLIER_FT
+        x, y = x.mask(bad), y.mask(bad)
+        x = x.interpolate(limit=PUCK_FILL_FRAMES, limit_area="inside")
+        y = y.interpolate(limit=PUCK_FILL_FRAMES, limit_area="inside")
+        sx = x.rolling(3, center=True, min_periods=1).mean().where(x.notna())
+        sy = y.rolling(3, center=True, min_periods=1).mean().where(y.notna())
+        clean_x.loc[idx], clean_y.loc[idx] = sx, sy
     px, py = [None] * n, [None] * n
-    for k, x, y in zip(puck["k"], puck["Rink Location X (Feet)"], puck["Rink Location Y (Feet)"]):
-        if not (pd.isna(x) or pd.isna(y)):
+    for k in range(n):
+        x, y = clean_x.iat[k * KEEP_EVERY], clean_y.iat[k * KEEP_EVERY]
+        if not (np.isnan(x) or np.isnan(y)):
             px[k], py[k] = int(round(x * SCALE)), int(round(y * SCALE))
 
+    # Recover jersey numbers missing on some rows from the tracklet's other rows.
+    pl_all = t[t["Player or Puck"] == "Player"]
+    known = (pl_all.dropna(subset=["Player Jersey Number"])
+             .groupby(["Team", "Player Id"])["Player Jersey Number"].agg(lambda s: s.mode().iat[0]))
+    keep = t[t["f"] % KEEP_EVERY == 0].copy()
+    keep["k"] = keep["f"] // KEEP_EVERY
     pl = keep[keep["Player or Puck"] == "Player"].copy()
+    miss = pl["Player Jersey Number"].isna()
+    if miss.any():
+        fill = pd.MultiIndex.from_arrays([pl.loc[miss, "Team"], pl.loc[miss, "Player Id"]]).map(known.to_dict().get)
+        pl.loc[miss, "Player Jersey Number"] = list(fill)
     pl["team"] = pl["Team"].map({"Home": home_team, "Away": away_team})
     pl["jersey"] = pl["Player Jersey Number"].map(pid)
     pl = pl.dropna(subset=["team", "jersey", "Rink Location X (Feet)", "Rink Location Y (Feet)"])
@@ -107,6 +144,7 @@ def build_period(path, period, home_team, away_team):
         "frames": frames,
         "px": px,
         "py": py,
+        "cuts": cuts,
         "goalMarkers": [[g // KEEP_EVERY, int(full_clock[g])] for g in goal_frames],
     }
 
