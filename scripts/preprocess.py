@@ -25,7 +25,8 @@ SCALE = 10              # store feet * 10 as ints (0.1 ft precision)
 GOAL_MARKER_TOL = 3     # seconds a tracking goal marker may differ from the event clock
 CLOCK_MEDIAN_FRAMES = 151  # ~5 s window (30 fps) for cleaning the tracking clock
 PERIOD_LENGTH = {1: 1200, 2: 1200, 3: 1200, 4: 300}   # regular-season OT is 5:00
-PUCK_OUTLIER_FT = 4     # puck points this far from their 7-frame median are treated as misreads
+POSSESSION_FT = 8       # a skater within this distance of the puck (nearest one) has possession
+PUCK_OUTLIER_FT = 4    # puck points this far from their 7-frame median are treated as misreads
 PUCK_FILL_FRAMES = 30   # fill puck gaps up to 1 s (30 fps), never across a camera cut
 POSSESSION_EVENTS = {"Play", "Puck Recovery", "Takeaway", "Faceoff Win", "Zone Entry",
                      "Dump In/Out", "Incomplete Play", "Shot"}
@@ -135,6 +136,17 @@ def build_period(path, period, home_team, away_team):
     for k, e, x, y in zip(pl["k"], pl["e"], pl["xi"], pl["yi"]):
         frames[k].extend((int(e), int(x), int(y)))
 
+    # Tracked possession: in each frame, the team of the nearest skater (not goalie) within
+    # POSSESSION_FT of the puck. Stored as running totals so the page can read "through now".
+    puck_k = pd.DataFrame({"k": range(n), "pkx": [v / SCALE if v is not None else np.nan for v in px],
+                           "pky": [v / SCALE if v is not None else np.nan for v in py]})
+    sk = pl[pl["jersey"] != "Go"][["k", "team", "Rink Location X (Feet)", "Rink Location Y (Feet)"]].merge(puck_k, on="k")
+    sk["d"] = np.hypot(sk["Rink Location X (Feet)"] - sk["pkx"], sk["Rink Location Y (Feet)"] - sk["pky"])
+    sk = sk[sk["d"] <= POSSESSION_FT]
+    owner = sk.loc[sk.groupby("k")["d"].idxmin()].set_index("k")["team"].reindex(range(n))
+    poss_h = np.cumsum((owner == home_team).to_numpy()).astype(int)
+    poss_a = np.cumsum((owner == away_team).to_numpy()).astype(int)
+
     return {
         "period": period,
         "fps": 30 / KEEP_EVERY,
@@ -145,6 +157,8 @@ def build_period(path, period, home_team, away_team):
         "px": px,
         "py": py,
         "cuts": cuts,
+        "possH": poss_h.tolist(),
+        "possA": poss_a.tolist(),
         "goalMarkers": [[g // KEEP_EVERY, int(full_clock[g])] for g in goal_frames],
     }
 
@@ -264,7 +278,8 @@ def process_game(args):
     meta = {
         "id": gid, "date": str(ev["Date"].iloc[0]), "home": home, "away": away,
         "periods": {str(p): {"n": periods[p]["n"], "fps": periods[p]["fps"],
-                             "start": periods[p]["clock"][0], "len": PERIOD_LENGTH[p]} for p in periods},
+                             "start": periods[p]["clock"][0], "len": PERIOD_LENGTH[p],
+                             "poss": [periods[p]["possH"][-1], periods[p]["possA"][-1]]} for p in periods},
         "events": events, "shifts": shifts,
         "roster": {k: sorted(v, key=lambda j: (j != "Go", int(j) if j.isdigit() else 0)) for k, v in roster.items()},
     }

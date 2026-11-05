@@ -8,7 +8,9 @@
 
 **Game replay (`game.html?g=<game-id>`)**
 - Smooth animated replay at 1x / 1.5x / 2x / 5x. You can change speed mid-play without restarting, and overtime is supported.
-- Live scoreboard that only changes at the tracked goal frame.
+- Live scoreboard that only changes at the tracked goal frame, plus a team stat strip: shots on goal, shot attempts, penalties, and tracked possession (share of time each team's skater is nearest the puck, within 8 ft).
+- Momentum chart of shot attempts per 2 minutes, filled in only up to the current moment, and a short puck trail on the rink.
+- Players the broadcast camera isn't tracking stay on the ice (faded) using the shift chart, so the rink always shows who's actually out there.
 - Puck-carrier highlight: the nearest skater within 8 ft of the puck gets a gold ring.
 - Live player stats per team (TOI, SOG, G, estimated A\*, PEN), all computed through the current game time.
 - GOAL banner over the rink, a play-by-play feed, period buttons, and a scrubber with goal markers.

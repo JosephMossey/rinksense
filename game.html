@@ -7,7 +7,7 @@
 <meta name="description" content="Animated player and puck tracking replay with a live scoreboard, player stats and play-by-play.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -24,25 +24,33 @@
 </nav>
 
 <div class="wrap">
-  <header class="gamehead">
+  <header class="ghead">
     <a class="back" href="index.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>All NHL games</a>
-    <div class="gametitle">
-      <h1 id="matchup">Game replay</h1>
-      <div class="gameinfo" id="gameinfo"></div>
+    <div class="ghtop">
+      <div class="gscore">
+        <div class="glive"><span id="plabel">PERIOD 1</span><span class="sep">·</span><span id="clock">20:00</span><span class="rem">remaining</span></div>
+        <div class="gline" aria-live="polite">
+          <span class="tside"><i class="tdot a"></i><span id="awayName">Away</span></span>
+          <span class="sc" id="scoreA">0</span><span class="dash">–</span><span class="sc" id="scoreD">0</span>
+          <span class="tside"><span id="homeName">Home</span><i class="tdot d"></i></span>
+        </div>
+        <div class="gmeta"><h1 id="matchup">Game replay</h1><span id="gameinfo"></span></div>
+      </div>
+      <div class="gstats">
+        <div class="gstat"><div class="gl">Shots on goal</div><div class="gv"><span id="sogA">0</span><span class="dash">–</span><span id="sogH">0</span></div></div>
+        <div class="gstat"><div class="gl">Shot attempts</div><div class="gv"><span id="attA">0</span><span class="dash">–</span><span id="attH">0</span></div></div>
+        <div class="gstat poss"><div class="gl">Tracked possession</div>
+          <div class="gv"><span id="possA">–</span><span class="dash">–</span><span id="possH">–</span></div>
+          <div class="pbar" aria-hidden="true"><i class="pa" id="possBarA"></i><i class="ph" id="possBarH"></i></div>
+        </div>
+        <div class="gstat"><div class="gl">Penalties</div><div class="gv"><span id="penA">0</span><span class="dash">–</span><span id="penH">0</span></div></div>
+      </div>
     </div>
   </header>
 
   <main class="grid">
     <section class="left">
-      <div class="card scoreboard">
-        <div class="team home"><span class="bar d"></span><div><div class="tname" id="homeName">HOME</div><div class="tsub">Home</div></div></div>
-        <div class="num" id="scoreD">0</div>
-        <div class="mid"><div class="plabel" id="plabel">PERIOD 1</div><div class="clock" id="clock">20:00</div></div>
-        <div class="num" id="scoreA">0</div>
-        <div class="team away"><div><div class="tname" id="awayName">AWAY</div><div class="tsub">Away</div></div><span class="bar a"></span></div>
-      </div>
-
-      <div class="card rinkcard">
+      <div class="card stage">
         <div class="rinkbox">
           <svg id="rink" viewBox="0 0 840 380" aria-label="Rink tracking view">
             <defs>
@@ -50,6 +58,7 @@
               <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter>
             </defs>
             <g id="rinkLines"></g>
+            <path id="puckTrail" fill="none" stroke="#ffd166" stroke-width="2" stroke-linecap="round" stroke-dasharray="3 5" opacity=".55"/>
             <g id="players"></g>
             <g id="puckLayer"></g>
           </svg>
@@ -61,33 +70,45 @@
           <div class="camnote" id="camNote" title="Tracking comes from the broadcast camera, so players outside the shot aren't tracked. Faded players are estimated positions.">Limited camera view</div>
           <div class="loading" id="loading">Loading tracking data…</div>
         </div>
-      </div>
-
-      <div class="card playback">
-        <div class="prow">
-          <button class="playbtn" id="playBtn" aria-label="Play">
-            <svg viewBox="0 0 24 24" id="playIcon"><path d="M8 5v14l11-7z"/></svg>
-          </button>
-          <button class="stopbtn" id="stopBtn" aria-label="Stop"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg></button>
-          <div class="scrub" id="scrub">
-            <div class="track"><div class="fill" id="fill"></div></div>
-            <div class="ticks" id="ticks"></div>
-            <div class="knob" id="knob"></div>
-          </div>
-          <div class="left-time" id="leftTime">20:00 left</div>
+        <div class="legend">
+          <span><i class="dot a"></i><b id="legAway">Away</b></span>
+          <span><i class="dot d"></i><b id="legHome">Home</b></span>
+          <span><i class="dot ring"></i>Has the puck</span>
+          <span><i class="dot ghost"></i>Off camera (estimated)</span>
+          <span><i class="puckdot"></i>Puck</span>
         </div>
-        <div class="prow2">
-          <div class="seg" id="periodBtns"><span class="slabel">PERIOD</span></div>
-          <div class="seg"><span class="slabel">SPEED</span>
-            <button class="pill" data-speed="1">1x</button><button class="pill" data-speed="1.5">1.5x</button><button class="pill" data-speed="2">2x</button><button class="pill" data-speed="5">5x</button>
+        <div class="playback">
+          <div class="prow">
+            <button class="playbtn" id="playBtn" aria-label="Play">
+              <svg viewBox="0 0 24 24" id="playIcon"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <button class="stopbtn" id="stopBtn" aria-label="Stop"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg></button>
+            <div class="scrub" id="scrub">
+              <div class="track"><div class="fill" id="fill"></div></div>
+              <div class="ticks" id="ticks"></div>
+              <div class="knob" id="knob"></div>
+            </div>
+            <div class="left-time" id="leftTime">20:00 left</div>
+          </div>
+          <div class="prow2">
+            <div class="seg" id="periodBtns"><span class="slabel">Period</span></div>
+            <div class="seg"><span class="slabel">Speed</span>
+              <button class="pill" data-speed="1">1x</button><button class="pill" data-speed="1.5">1.5x</button><button class="pill" data-speed="2">2x</button><button class="pill" data-speed="5">5x</button>
+            </div>
           </div>
         </div>
       </div>
     </section>
 
     <aside class="right">
+      <div class="card momentum">
+        <div class="chead"><span class="ctitle">Momentum</span><span class="csub">Shot attempts per 2 min</span></div>
+        <svg id="momentum" viewBox="0 0 300 92" preserveAspectRatio="none" aria-label="Shot attempts over the game"></svg>
+        <div class="mlegend"><span><i class="dot a"></i><b id="momAway">Away</b></span><span><i class="dot d"></i><b id="momHome">Home</b></span><span class="mper" id="momPer"></span></div>
+      </div>
+
       <div class="card stats">
-        <div class="chead"><span class="ctitle">PLAYER STATS</span><span class="csub" id="statsThrough"></span></div>
+        <div class="chead"><span class="ctitle">Player stats</span><span class="csub" id="statsThrough"></span></div>
         <div class="tabs" role="tablist" id="statsTabs"></div>
         <div class="tablebox" id="tablebox">
           <table>
@@ -99,18 +120,8 @@
       </div>
 
       <div class="card pbp">
-        <div class="chead"><span class="ctitle">PLAY-BY-PLAY</span></div>
+        <div class="chead"><span class="ctitle">Play-by-play</span></div>
         <ul id="pbpList"></ul>
-      </div>
-
-      <div class="card legend">
-        <div class="chead"><span class="ctitle">LEGEND</span></div>
-        <div class="lrow">
-          <span><i class="dot d"></i><b id="legHome">Home</b></span>
-          <span><i class="dot a"></i><b id="legAway">Away</b></span>
-          <span><i class="dot d ring"></i>Has the puck</span>
-          <span><i class="puckdot"></i>Puck</span>
-        </div>
       </div>
     </aside>
   </main>

@@ -36,21 +36,21 @@
   const svg = $('goalSvg');
   const X = (x) => 20 + x * 4;          // x: 0..100 ft  -> 20..420
   const Y = (y) => 190 - y * 4;         // y: -42.5..42.5 -> 360..20
-  const red = '#e8646a', blue = '#2f6bff';
+  const red = '#e8646a', blue = '#4a7dff';
   let m = `<defs><clipPath id="half"><path d="M20,20 H308 A112,112 0 0 1 420,132 V248 A112,112 0 0 1 308,360 H20 Z"/></clipPath></defs>
-    <path d="M20,20 H308 A112,112 0 0 1 420,132 V248 A112,112 0 0 1 308,360 H20 Z" fill="#0f1930"/>
+    <path d="M20,20 H308 A112,112 0 0 1 420,132 V248 A112,112 0 0 1 308,360 H20 Z" fill="#0d1626"/>
     <g clip-path="url(#half)">
-      <rect x="${X(0) - 2}" y="20" width="4" height="340" fill="${red}" opacity=".7"/>
-      <rect x="${X(25) - 2.5}" y="20" width="5" height="340" fill="${blue}"/>
-      <line x1="${X(89)}" y1="20" x2="${X(89)}" y2="360" stroke="${red}" stroke-width="1.5" opacity=".8"/>
-      <path d="M${X(89)},166 A24,24 0 0 0 ${X(89)},214 Z" fill="rgba(47,107,255,.22)" stroke="${red}" stroke-width="1.5"/>
-      <rect x="${X(89)}" y="178" width="13" height="24" fill="none" stroke="#9fb0cf" stroke-width="1.5"/>
-      <circle cx="${X(69)}" cy="${Y(22)}" r="60" fill="none" stroke="${red}" stroke-width="2" opacity=".75"/>
-      <circle cx="${X(69)}" cy="${Y(-22)}" r="60" fill="none" stroke="${red}" stroke-width="2" opacity=".75"/>
-      <circle cx="${X(69)}" cy="${Y(22)}" r="4" fill="${red}"/><circle cx="${X(69)}" cy="${Y(-22)}" r="4" fill="${red}"/>
-      <circle cx="${X(0)}" cy="190" r="60" fill="none" stroke="${blue}" stroke-width="2" opacity=".75"/>
+      <rect x="${X(0) - 1.25}" y="20" width="2.5" height="340" fill="${red}" opacity=".55"/>
+      <rect x="${X(25) - 1.75}" y="20" width="3.5" height="340" fill="${blue}" opacity=".6"/>
+      <line x1="${X(89)}" y1="20" x2="${X(89)}" y2="360" stroke="${red}" stroke-width="1" opacity=".5"/>
+      <path d="M${X(89)},166 A24,24 0 0 0 ${X(89)},214 Z" fill="rgba(74,125,255,.14)" stroke="${red}" stroke-width="1" opacity=".6"/>
+      <rect x="${X(89)}" y="178" width="13" height="24" fill="none" stroke="#8fa1c4" stroke-width="1.2" opacity=".7"/>
+      <circle cx="${X(69)}" cy="${Y(22)}" r="60" fill="none" stroke="${red}" stroke-width="1.2" opacity=".4"/>
+      <circle cx="${X(69)}" cy="${Y(-22)}" r="60" fill="none" stroke="${red}" stroke-width="1.2" opacity=".4"/>
+      <circle cx="${X(69)}" cy="${Y(22)}" r="3.5" fill="${red}" opacity=".6"/><circle cx="${X(69)}" cy="${Y(-22)}" r="3.5" fill="${red}" opacity=".6"/>
+      <circle cx="${X(0)}" cy="190" r="60" fill="none" stroke="${blue}" stroke-width="1.2" opacity=".45"/>
     </g>
-    <path d="M20,20 H308 A112,112 0 0 1 420,132 V248 A112,112 0 0 1 308,360 H20" fill="none" stroke="#3b4d72" stroke-width="3"/>`;
+    <path d="M20,20 H308 A112,112 0 0 1 420,132 V248 A112,112 0 0 1 308,360 H20" fill="none" stroke="#2a3a5a" stroke-width="2"/>`;
   let plotted = 0;
   for (const g of GAMES) {
     for (const gl of g.goals) {

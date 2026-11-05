@@ -34,6 +34,8 @@
     const HOLD_SECONDS = 1.5;      // after a player leaves the shot, keep them (faded) this long
     const GHOST_AFTER_FRAMES = 5;  // dropouts longer than ~1/3 s are drawn faded (position is a guess)
     const LIMITED_VIEW_PLAYERS = 4; // show the "limited camera view" chip at or below this many
+    const TRAIL_FRAMES = 15;        // puck trail length (1 s of tracking at 15 fps)
+    const MOMENTUM_BIN = 120;       // momentum chart bin size in seconds
     const CARRIER_STICKY_FT = 1.5;  // a new skater must be this much closer to take the gold ring...
     const CARRIER_SWITCH_SECONDS = 0.3; // ...for this long (tracking time)
     const COLORS = { [HOME]: { fill: '#2f6bff', text: '#ffffff' }, [AWAY]: { fill: '#ff8a80', text: '#0b1220' } };
@@ -63,10 +65,7 @@
     document.title = `${AWAY} @ ${HOME} · RINKSENSE`;
     $('matchup').textContent = `${AWAY} @ ${HOME}`;
     $('gameinfo').textContent = `${dateTxt}${PERIODS.includes(4) ? ' · Went to overtime' : ''}`;
-    $('homeName').textContent = HOME.toUpperCase();
-    $('awayName').textContent = AWAY.toUpperCase();
-    $('legHome').textContent = HOME;
-    $('legAway').textContent = AWAY;
+    for (const [id, v] of [['homeName', HOME], ['awayName', AWAY], ['legHome', HOME], ['legAway', AWAY], ['momHome', HOME], ['momAway', AWAY]]) $(id).textContent = v;
     $('statsTabs').innerHTML = [HOME, AWAY].map((t, i) =>
       `<button class="tab${i ? '' : ' on'}" role="tab" aria-selected="${!i}" data-team="${esc(t)}"><i class="dot ${i ? 'a' : 'd'}"></i>${esc(t)}</button>`).join('');
     $('periodBtns').insertAdjacentHTML('beforeend', PERIODS.map((p) => `<button class="pill" data-period="${p}">${pName(p)}</button>`).join(''));
@@ -134,26 +133,28 @@
     // ---------- rink ----------
     function drawRink() {
       const g = $('rinkLines');
-      svgEl('rect', { x: 20, y: 20, width: 800, height: 340, rx: 112, fill: '#0f1930' }, g);
+      // Quiet, analytic rink: thin translucent markings so players and the puck carry the eye.
+      svgEl('rect', { x: 20, y: 20, width: 800, height: 340, rx: 112, fill: '#0d1626' }, g);
       const c = svgEl('g', { 'clip-path': 'url(#boards)' }, g);
-      const red = '#e8646a', blue = '#2f6bff';
+      const red = '#e8646a', blue = '#4a7dff';
+      const line = (o) => ({ opacity: o });
       for (const gx of [64, 776]) {
         const dir = gx < 420 ? 1 : 0;
-        svgEl('path', { d: `M${gx},166 A24,24 0 0 ${dir} ${gx},214 Z`, fill: 'rgba(47,107,255,.22)', stroke: red, 'stroke-width': 1.5 }, c);
+        svgEl('path', { d: `M${gx},166 A24,24 0 0 ${dir} ${gx},214 Z`, fill: 'rgba(74,125,255,.14)', stroke: red, 'stroke-width': 1, ...line(.6) }, c);
         const nx = gx < 420 ? gx - 13 : gx;
-        svgEl('rect', { x: nx, y: 178, width: 13, height: 24, fill: 'none', stroke: '#9fb0cf', 'stroke-width': 1.5 }, c);
+        svgEl('rect', { x: nx, y: 178, width: 13, height: 24, fill: 'none', stroke: '#8fa1c4', 'stroke-width': 1.2, ...line(.7) }, c);
       }
-      for (const gx of [64, 776]) svgEl('line', { x1: gx, y1: 20, x2: gx, y2: 360, stroke: red, 'stroke-width': 1.5, opacity: .8 }, c);
-      for (const bx of [320, 520]) svgEl('rect', { x: bx - 2.5, y: 20, width: 5, height: 340, fill: blue }, c);
-      svgEl('rect', { x: 418, y: 20, width: 4, height: 340, fill: red }, c);
+      for (const gx of [64, 776]) svgEl('line', { x1: gx, y1: 20, x2: gx, y2: 360, stroke: red, 'stroke-width': 1, ...line(.5) }, c);
+      for (const bx of [320, 520]) svgEl('rect', { x: bx - 1.75, y: 20, width: 3.5, height: 340, fill: blue, ...line(.6) }, c);
+      svgEl('rect', { x: 418.75, y: 20, width: 2.5, height: 340, fill: red, ...line(.55) }, c);
       for (const fx of [144, 696]) for (const fy of [102, 278]) {
-        svgEl('circle', { cx: fx, cy: fy, r: 60, fill: 'none', stroke: red, 'stroke-width': 2 }, c);
-        svgEl('circle', { cx: fx, cy: fy, r: 5, fill: red }, c);
+        svgEl('circle', { cx: fx, cy: fy, r: 60, fill: 'none', stroke: red, 'stroke-width': 1.2, ...line(.4) }, c);
+        svgEl('circle', { cx: fx, cy: fy, r: 3.5, fill: red, ...line(.6) }, c);
       }
-      for (const fx of [340, 500]) for (const fy of [102, 278]) svgEl('circle', { cx: fx, cy: fy, r: 4, fill: red }, c);
-      svgEl('circle', { cx: 420, cy: 190, r: 60, fill: 'none', stroke: blue, 'stroke-width': 2 }, c);
-      svgEl('circle', { cx: 420, cy: 190, r: 4, fill: blue }, c);
-      svgEl('rect', { x: 20, y: 20, width: 800, height: 340, rx: 112, fill: 'none', stroke: '#3b4d72', 'stroke-width': 3 }, g);
+      for (const fx of [340, 500]) for (const fy of [102, 278]) svgEl('circle', { cx: fx, cy: fy, r: 3, fill: red, ...line(.5) }, c);
+      svgEl('circle', { cx: 420, cy: 190, r: 60, fill: 'none', stroke: blue, 'stroke-width': 1.2, ...line(.45) }, c);
+      svgEl('circle', { cx: 420, cy: 190, r: 3, fill: blue, ...line(.7) }, c);
+      svgEl('rect', { x: 20, y: 20, width: 800, height: 340, rx: 112, fill: 'none', stroke: '#2a3a5a', 'stroke-width': 2 }, g);
     }
 
     // ---------- players / puck ----------
@@ -166,12 +167,12 @@
       let t = pool.get(key);
       if (t) return t;
       const g = svgEl('g', {}, playersLayer);
-      const glow = svgEl('circle', { r: 17, fill: '#ffd166', opacity: .32, filter: 'url(#glow)', visibility: 'hidden' }, g);
-      const ring = svgEl('circle', { r: 14, fill: 'none', stroke: '#ffd166', 'stroke-width': 3, visibility: 'hidden' }, g);
+      const glow = svgEl('circle', { r: 16, fill: '#ffd166', opacity: .22, filter: 'url(#glow)', visibility: 'hidden' }, g);
+      const ring = svgEl('circle', { r: 14.5, fill: 'none', stroke: '#ffd166', 'stroke-width': 2.2, visibility: 'hidden' }, g);
       const col = COLORS[team] || COLORS[HOME];
-      svgEl('circle', { r: 10.5, fill: col.fill, stroke: '#0b1220', 'stroke-width': 1 }, g);
+      svgEl('circle', { r: 10.5, fill: col.fill, stroke: '#0a101d', 'stroke-width': 1.5 }, g);
       const label = jersey === 'Go' ? 'G' : jersey;
-      const txt = svgEl('text', { 'text-anchor': 'middle', y: 3.6, fill: col.text, 'font-size': label.length > 1 ? 9.5 : 10.5, 'font-weight': 700, 'font-family': 'Inter, sans-serif' }, g);
+      const txt = svgEl('text', { 'text-anchor': 'middle', y: 3.5, fill: col.text, 'font-size': label.length > 1 ? 9.5 : 10.5, 'font-weight': 600, 'font-family': 'Inter, sans-serif' }, g);
       txt.textContent = label;
       t = { g, ring, glow, shown: true };
       pool.set(key, t);
@@ -208,6 +209,19 @@
       S.lastK = k0;
 
       const pk = puckAt(D, k0, k1, a);
+
+      // short fading trail of where the puck has just been (never across a camera cut)
+      let trail = '';
+      if (pk) {
+        const pts = [];
+        for (let j = Math.max(0, k0 - TRAIL_FRAMES); j <= k0; j++) {
+          if (D.px[j] === null || cutBetween(D, j, k0)) { pts.length = 0; continue; }
+          pts.push(`${px(D.px[j] / 10).toFixed(1)},${py(D.py[j] / 10).toFixed(1)}`);
+        }
+        pts.push(`${px(pk.x).toFixed(1)},${py(pk.y).toFixed(1)}`);
+        if (pts.length > 2) trail = 'M' + pts.join('L');
+      }
+      if (trail !== S.trail) { $('puckTrail').setAttribute('d', trail); S.trail = trail; }
 
       const list = [];          // candidates to draw: {e, x, y, faded, prio, age}
       let tracked = 0;
@@ -377,6 +391,80 @@
       }
     }
 
+    // Team stat strip in the header: SOG, shot attempts, penalties (events) and tracked possession.
+    function renderHeaderStats(D, k, nPast) {
+      const t = { [HOME]: { sog: 0, att: 0, pen: 0 }, [AWAY]: { sog: 0, att: 0, pen: 0 } };
+      for (let i = 0; i < nPast; i++) {
+        const e = events[i], r = t[e.t];
+        if (!r) continue;
+        if (e.ev === 'Goal') { r.sog++; r.att++; }
+        else if (e.ev === 'Shot') { r.att++; if (e.d2 === 'On Net') r.sog++; }
+        else if (e.ev === 'Penalty Taken') r.pen++;
+      }
+      for (const [id, v] of [['sogA', t[AWAY].sog], ['sogH', t[HOME].sog], ['attA', t[AWAY].att], ['attH', t[HOME].att], ['penA', t[AWAY].pen], ['penH', t[HOME].pen]]) $(id).textContent = v;
+      let ph = 0, pa = 0;
+      for (const p of PERIODS) {
+        if (p < S.period) { ph += META.periods[p].poss ? META.periods[p].poss[0] : 0; pa += META.periods[p].poss ? META.periods[p].poss[1] : 0; }
+      }
+      if (D.possH) { ph += D.possH[k]; pa += D.possA[k]; }
+      const tot = ph + pa;
+      if (tot > 0) {
+        const sh = Math.round((ph / tot) * 100);
+        $('possH').textContent = sh + '%';
+        $('possA').textContent = (100 - sh) + '%';
+        $('possBarH').style.width = sh + '%';
+        $('possBarA').style.width = (100 - sh) + '%';
+      } else {
+        $('possH').textContent = $('possA').textContent = '–';
+        $('possBarH').style.width = $('possBarA').style.width = '50%';
+      }
+    }
+
+    // Momentum: shot attempts per 2-minute bin across the whole game (home up, away down).
+    // Bins after the current moment stay empty, so nothing is revealed ahead of time.
+    const MOM = (() => {
+      const bins = [];
+      for (const p of PERIODS) {
+        const len = META.periods[p].len || 1200;
+        for (let s = 0; s < len; s += MOMENTUM_BIN) bins.push({ p, from: len - s, to: Math.max(0, len - s - MOMENTUM_BIN) });
+      }
+      const count = (bin, team) => events.filter((e) => e.p === bin.p && e.t === team && (e.ev === 'Shot' || e.ev === 'Goal') && e.c <= bin.from && e.c > bin.to).length;
+      let max = 1;
+      for (const b of bins) { b.allH = count(b, HOME); b.allA = count(b, AWAY); max = Math.max(max, b.allH, b.allA); }
+      return { bins, max };
+    })();
+    function renderMomentum(clock, nPast) {
+      const W = 300, H = 92, mid = 46, maxH = 38, gap = 1.5;
+      const n = MOM.bins.length;
+      const bw = (W - gap * (n - 1)) / n;
+      const live = { H: new Array(n).fill(0), A: new Array(n).fill(0) };
+      for (let i = 0; i < nPast; i++) {
+        const e = events[i];
+        if (e.ev !== 'Shot' && e.ev !== 'Goal') continue;
+        const bi = MOM.bins.findIndex((b) => b.p === e.p && e.c <= b.from && e.c > b.to);
+        if (bi >= 0) live[e.t === HOME ? 'H' : 'A'][bi]++;
+      }
+      const curBin = MOM.bins.findIndex((b) => b.p === S.period && clock <= b.from && clock >= b.to);
+      let out = `<line x1="0" y1="${mid}" x2="${W}" y2="${mid}" stroke="#26344f" stroke-width="1"/>`;
+      MOM.bins.forEach((b, i) => {
+        const x = i * (bw + gap);
+        if (i > 0 && MOM.bins[i - 1].p !== b.p) out += `<line x1="${(x - gap / 2).toFixed(1)}" y1="4" x2="${(x - gap / 2).toFixed(1)}" y2="${H - 4}" stroke="#26344f" stroke-dasharray="2 3"/>`;
+        const hh = (live.H[i] / MOM.max) * maxH, ha = (live.A[i] / MOM.max) * maxH;
+        const future = curBin >= 0 && i > curBin;
+        if (!future) {
+          if (hh) out += `<rect x="${x.toFixed(1)}" y="${(mid - hh).toFixed(1)}" width="${bw.toFixed(1)}" height="${hh.toFixed(1)}" rx="1" fill="#2f6bff"/>`;
+          if (ha) out += `<rect x="${x.toFixed(1)}" y="${mid}" width="${bw.toFixed(1)}" height="${ha.toFixed(1)}" rx="1" fill="#ff8a80"/>`;
+        }
+        if (i === curBin) {
+          const frac = (b.from - clock) / (b.from - b.to);
+          const cx = x + bw * Math.min(1, Math.max(0, frac));
+          out += `<line x1="${cx.toFixed(1)}" y1="2" x2="${cx.toFixed(1)}" y2="${H - 2}" stroke="#ffd166" stroke-width="1.2"/>`;
+        }
+      });
+      $('momentum').innerHTML = out;
+      $('momPer').textContent = PERIODS.map(pName).join(' · ');
+    }
+
     // Heavier DOM updates only run when the game second or the event count changes.
     function renderGameState(D) {
       const k = Math.min(Math.floor(S.pos), D.n - 1);
@@ -389,7 +477,9 @@
       if (showBanner) {
         const e = lastGoal.e;
         $('gWho').textContent = `#${e.pl} · ${e.t}`;
-        $('gWhat').textContent = `${e.d1 || 'Goal'} · now ${lastGoal.score[HOME]}–${lastGoal.score[AWAY]}`;
+        const h = lastGoal.score[HOME], aw = lastGoal.score[AWAY];
+        const state = h === aw ? `tied ${h}–${aw}` : h > aw ? `${HOME} leads ${h}–${aw}` : `${AWAY} leads ${aw}–${h}`;
+        $('gWhat').textContent = `${e.d1 || 'Goal'} · ${state}`;
       }
       b.classList.toggle('show', !!showBanner);
 
@@ -403,6 +493,8 @@
       $('clock').textContent = fmt(clock);
       $('leftTime').textContent = `${fmt(clock)} left`;
       $('statsThrough').textContent = `through ${fmt(clock)} of ${pName(S.period)}`;
+      renderHeaderStats(D, k, nPast);
+      renderMomentum(clock, nPast);
 
       const st = computeStats(nPast, S.period, clock);
       const team = S.statsTeam;
