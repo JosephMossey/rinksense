@@ -279,3 +279,21 @@ td.twp { color: var(--soft); }
 .foot + .foot { margin-top: 6px; }
 @media (max-width: 1100px) { .grid { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 760px) { .gstats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .gstat:nth-child(odd) { border-left: none; } .gstat:nth-child(even) { border-left: 1px solid var(--line); } .gstat:nth-child(n+3) { border-top: 1px solid var(--line); } }
+
+/* power play */
+.ppbadge { display: none; align-items: center; gap: 10px; margin-top: 10px; padding: 5px 10px; border: 1px solid rgba(255, 209, 102, .5); background: rgba(255, 209, 102, .07); border-radius: 8px; width: max-content; }
+.ppbadge.show { display: inline-flex; }
+.ppw { font-family: 'Bebas Neue', sans-serif; font-size: 19px; color: var(--gold); letter-spacing: 1px; line-height: 1; padding-top: 2px; }
+.ppteam { font-size: 12px; font-weight: 600; }
+.ppstr { font-size: 11px; color: var(--muted); }
+.ppt { font-size: 15px; font-weight: 500; color: var(--gold); font-variant-numeric: tabular-nums; min-width: 34px; }
+.ppbar { width: 70px; height: 3px; border-radius: 2px; background: var(--line-2); overflow: hidden; }
+.ppbar i { display: block; height: 100%; background: var(--gold); transition: width 1s linear; }
+#ppTint { opacity: 0; transition: opacity .4s; }
+#ppTint.show { opacity: 1; }
+.ppnote { position: absolute; top: 7%; right: 5.5%; font-size: 11px; color: var(--soft); background: rgba(9, 14, 26, .86); border: 1px solid var(--line-2); border-radius: 8px; padding: 4px 10px; opacity: 0; transition: opacity .3s; pointer-events: none; white-space: nowrap; }
+.ppnote b { color: var(--gold); font-weight: 600; letter-spacing: 1px; text-transform: uppercase; font-size: 10px; margin-right: 4px; }
+.ppnote.show { opacity: 1; }
+.pptag { margin-left: auto; flex: none; font-size: 9.5px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--gold); border: 1px solid rgba(255, 209, 102, .4); border-radius: 5px; padding: 1px 6px; }
+.pbp li.ppend { color: var(--muted); }
+@media (max-width: 600px) { .ppnote { display: none; } .ppbar { width: 44px; } }

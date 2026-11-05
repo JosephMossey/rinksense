@@ -109,6 +109,7 @@
       <div class="gfoot">
         <span class="gstat">SOG <b>${g.sog[g.away]}–${g.sog[g.home]}</b></span>
         ${g.xg ? `<span class="gstat">xG <b>${g.xg[g.away].toFixed(1)}–${g.xg[g.home].toFixed(1)}</b></span>` : ''}
+        ${g.pp ? `<span class="gstat" title="Power-play goals / chances">PP <b>${g.pp[g.away][0]}/${g.pp[g.away][1]} · ${g.pp[g.home][0]}/${g.pp[g.home][1]}</b></span>` : ''}
         <span class="watch">Watch replay<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
       </div>
     </a>`;

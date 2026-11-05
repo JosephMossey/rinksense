@@ -34,6 +34,7 @@
           <span class="sc" id="scoreA">0</span><span class="dash">–</span><span class="sc" id="scoreD">0</span>
           <span class="tside"><span id="homeName">Home</span><i class="tdot d"></i></span>
         </div>
+        <div class="ppbadge" id="ppBadge" aria-live="polite"><span class="ppw">PP</span><span class="ppteam" id="ppTeam"></span><span class="ppstr" id="ppStr"></span><span class="ppt" id="ppTime"></span><span class="ppbar"><i id="ppBar"></i></span></div>
         <div class="gmeta"><h1 id="matchup">Game replay</h1><span id="gameinfo"></span></div>
       </div>
       <div class="gstats">
@@ -45,7 +46,7 @@
           <div class="pbar" aria-hidden="true"><i class="pa" id="possBarA"></i><i class="ph" id="possBarH"></i></div>
           <div class="psub"><span id="twpA">0:00</span> – <span id="twpH">0:00</span> with puck</div>
         </div>
-        <div class="gstat"><div class="gl">Penalties</div><div class="gv"><span id="penA">0</span><span class="dash">–</span><span id="penH">0</span></div></div>
+        <div class="gstat"><div class="gl" title="Power-play goals / power-play chances">Power plays</div><div class="gv"><span id="ppA">0/0</span><span class="dash">–</span><span id="ppH">0/0</span></div><div class="psub">PP xG <span id="ppxgA">0.00</span> – <span id="ppxgH">0.00</span></div></div>
       </div>
     </div>
   </header>
@@ -60,6 +61,7 @@
               <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter>
             </defs>
             <g id="rinkLines"></g>
+            <rect id="ppTint" x="20" y="20" width="800" height="340" rx="112" fill="rgba(255,209,102,.035)" stroke="rgba(255,209,102,.5)" stroke-width="2" pointer-events="none"/>
             <path id="puckTrail" fill="none" stroke="#ffd166" stroke-width="2" stroke-linecap="round" stroke-dasharray="3 5" opacity=".55"/>
             <g id="players"></g>
             <g id="puckLayer"></g>
@@ -69,6 +71,7 @@
             <div><div class="gwho" id="gWho"></div><div class="gwhat" id="gWhat"></div></div>
           </div>
           <div class="covnote" id="covNote"></div>
+          <div class="ppnote" id="ppNote"></div>
           <div class="camnote" id="camNote" title="Tracking comes from the broadcast camera, so players outside the shot aren't tracked. Faded players are estimated positions.">Limited camera view</div>
           <div class="loading" id="loading">Loading tracking data…</div>
         </div>

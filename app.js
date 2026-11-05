@@ -34,7 +34,8 @@
     const HOLD_SECONDS = 1.5;      // after a player leaves the shot, keep them (faded) this long
     const GHOST_AFTER_FRAMES = 5;  // dropouts longer than ~1/3 s are drawn faded (position is a guess)
     const LIMITED_VIEW_PLAYERS = 4; // show the "limited camera view" chip at or below this many
-    const TRAIL_FRAMES = 15;        // puck trail length (1 s of tracking at 15 fps)
+    const PP_MINOR = 120;           // a minor penalty's power play runs 2:00
+    const TRAIL_FRAMES = 15;       // puck trail length (1 s of tracking at 15 fps)
     const MOMENTUM_BIN = 120;       // momentum chart bin size in seconds
     const CARRIER_STICKY_FT = 1.5;  // a new skater must be this much closer to take the gold ring...
     const CARRIER_SWITCH_SECONDS = 0.3; // ...for this long (tracking time)
@@ -65,6 +66,51 @@
     document.title = `${AWAY} @ ${HOME} · RINKSENSE`;
     $('matchup').textContent = `${AWAY} @ ${HOME}`;
     $('gameinfo').textContent = `${dateTxt}${PERIODS.includes(4) ? ' · Went to overtime' : ''}`;
+    // ---------- power plays ----------
+    // Windows come from preprocessing (penalty -> expiry, PP goal, or back to even strength).
+    // Link each to its penalty event (when it starts) and, if a goal ended it, that goal event.
+    const PP = (META.pp || []).map((w) => {
+      const ei = events.findIndex((e) => e.ev === 'Penalty Taken' && e.p === w.p && e.c === w.start && e.t === w.opp && e.pl === w.pl);
+      const gi = w.reason === 'goal' ? events.findIndex((e, i) => i > ei && e.ev === 'Goal' && e.p === w.p && e.c === w.end && e.t === w.team) : -1;
+      let endSeq = gi >= 0 ? gi + 0.5 : -1;
+      if (endSeq < 0) events.forEach((e, i) => { if (e.p === w.p && e.c >= w.end) endSeq = i + 0.5; });
+      return { ...w, ei, gi, endSeq };
+    });
+    // which power-play window (if any) each event happened inside, for its own team
+    const evPP = events.map((e, i) => PP.find((w) => w.team === e.t && w.p === e.p && i > w.ei && e.c <= w.start && e.c >= w.end && (w.gi < 0 || i <= w.gi)) || null);
+    const ppStarted = (w, nPast) => w.ei >= 0 && nPast > w.ei;
+    const ppOver = (w, nPast, clock) => w.gi >= 0 ? nPast > w.gi : (w.p < S.period || (w.p === S.period && clock <= w.end));
+    const ppActive = (nPast, clock) => PP.filter((w) => w.p === S.period && ppStarted(w, nPast) && !ppOver(w, nPast, clock));
+
+    function renderPowerPlay(nPast, clock) {
+      const act = ppActive(nPast, clock);
+      const n = { [HOME]: 0, [AWAY]: 0 };   // active penalties against each team
+      for (const w of act) n[w.opp]++;
+      const base = S.period === 4 ? 3 : 5;
+      let team = null;
+      if (n[HOME] > n[AWAY]) team = AWAY; else if (n[AWAY] > n[HOME]) team = HOME;
+      const on = !!team;
+      $('ppBadge').classList.toggle('show', on);
+      $('ppNote').classList.toggle('show', on);
+      $('ppTint').classList.toggle('show', on);
+      if (!on) return;
+      const opp = team === HOME ? AWAY : HOME;
+      // Count down to when the penalty would expire on its own (2:00), never to how it actually
+      // ended: a goal or offsetting penalty just makes the badge disappear early, no spoilers.
+      const expiry = (x) => Math.max(0, x.start - PP_MINOR);
+      const mine = act.filter((w) => w.team === team).sort((a, b) => expiry(b) - expiry(a));
+      const w = mine[0];                       // the penalty that expires first
+      const left = Math.max(0, clock - expiry(w));
+      const ppSk = S.period === 4 ? base + n[opp] : base - n[team];
+      const shSk = S.period === 4 ? base : base - n[opp];
+      $('ppTeam').textContent = team;
+      $('ppTeam').style.color = COLORS[team].fill;
+      $('ppStr').textContent = `${ppSk} on ${shSk}`;
+      $('ppTime').textContent = fmt(left);
+      $('ppBar').style.width = `${Math.min(100, (left / Math.max(1, w.start - expiry(w))) * 100)}%`;
+      $('ppNote').innerHTML = `<b>Power play</b> ${esc(team)} · #${esc(w.pl || '?')} ${esc(w.opp)}${w.why ? ', ' + esc(w.why.toLowerCase()) : ''}`;
+    }
+
     const XG = window.RS_XG;
     if (XG) $('xgNote').textContent = `xG model: logistic regression on ${XG.attempts} unblocked shots (${XG.goals} goals) from ${XG.games} games, using distance, angle, rebound, one-timer, traffic, deflection and power play. Tested on games it never saw: AUC ${XG.cv.auc}.`;
     for (const [id, v] of [['homeName', HOME], ['awayName', AWAY], ['legHome', HOME], ['legAway', AWAY], ['momHome', HOME], ['momAway', AWAY]]) $(id).textContent = v;
@@ -434,8 +480,19 @@
         else if (e.ev === 'Shot') { r.att++; if (e.d2 === 'On Net') r.sog++; }
         else if (e.ev === 'Penalty Taken') r.pen++;
       }
-      for (const [id, v] of [['sogA', t[AWAY].sog], ['sogH', t[HOME].sog], ['attA', t[AWAY].att], ['attH', t[HOME].att], ['penA', t[AWAY].pen], ['penH', t[HOME].pen],
-        ['xgA', t[AWAY].xg.toFixed(2)], ['xgH', t[HOME].xg.toFixed(2)]]) $(id).textContent = v;
+      // power plays: goals / chances so far, and xG generated on the power play
+      const pp = { [HOME]: { g: 0, n: 0, xg: 0 }, [AWAY]: { g: 0, n: 0, xg: 0 } };
+      for (const w of PP) if (ppStarted(w, nPast)) pp[w.team].n++;
+      for (let i = 0; i < nPast; i++) {
+        const w = evPP[i];
+        if (!w) continue;
+        if (events[i].ev === 'Goal') pp[w.team].g++;
+        if (events[i].xg) pp[w.team].xg += events[i].xg;
+      }
+      for (const [id, v] of [['sogA', t[AWAY].sog], ['sogH', t[HOME].sog], ['attA', t[AWAY].att], ['attH', t[HOME].att],
+        ['xgA', t[AWAY].xg.toFixed(2)], ['xgH', t[HOME].xg.toFixed(2)],
+        ['ppA', `${pp[AWAY].g}/${pp[AWAY].n}`], ['ppH', `${pp[HOME].g}/${pp[HOME].n}`],
+        ['ppxgA', pp[AWAY].xg.toFixed(2)], ['ppxgH', pp[HOME].xg.toFixed(2)]]) $(id).textContent = v;
       const ph = pc.home, pa = pc.away;
       $('twpH').textContent = fmt(ph / D.fps);
       $('twpA').textContent = fmt(pa / D.fps);
@@ -477,7 +534,22 @@
         if (bi >= 0) live[e.t === HOME ? 'H' : 'A'][bi]++;
       }
       const curBin = MOM.bins.findIndex((b) => b.p === S.period && clock <= b.from && clock >= b.to);
-      let out = `<line x1="0" y1="${mid}" x2="${W}" y2="${mid}" stroke="#26344f" stroke-width="1"/>`;
+      // x position of a (period, clock) moment on the chart
+      const xAt = (p, c) => {
+        const bi = MOM.bins.findIndex((b) => b.p === p && c <= b.from && c >= b.to);
+        if (bi < 0) return null;
+        const b = MOM.bins[bi];
+        return bi * (bw + gap) + bw * ((b.from - c) / Math.max(1, b.from - b.to));
+      };
+      let out = '';
+      for (const w of PP) {                // power plays shaded gold, only as far as they've happened
+        if (!ppStarted(w, nPast)) continue;
+        const end = ppOver(w, nPast, clock) ? w.end : clock;
+        const x1 = xAt(w.p, w.start), x2 = xAt(w.p, end);
+        if (x1 === null || x2 === null) continue;
+        out += `<rect x="${x1.toFixed(1)}" y="0" width="${Math.max(1, x2 - x1).toFixed(1)}" height="${H}" fill="#ffd166" opacity=".12"/>`;
+      }
+      out += `<line x1="0" y1="${mid}" x2="${W}" y2="${mid}" stroke="#26344f" stroke-width="1"/>`;
       MOM.bins.forEach((b, i) => {
         const x = i * (bw + gap);
         if (i > 0 && MOM.bins[i - 1].p !== b.p) out += `<line x1="${(x - gap / 2).toFixed(1)}" y1="4" x2="${(x - gap / 2).toFixed(1)}" y2="${H - 4}" stroke="#26344f" stroke-dasharray="2 3"/>`;
@@ -528,6 +600,7 @@
       const pc = puckControl(D, k);
       renderHeaderStats(D, k, nPast, pc);
       renderMomentum(clock, nPast);
+      renderPowerPlay(nPast, clock);
 
       const st = computeStats(nPast, S.period, clock, pc);
       const team = S.statsTeam;
@@ -544,18 +617,33 @@
       }
       $('statsBody').innerHTML = html;
 
+      // newest first: past events plus a recap line for each power play that has ended
+      const startI = Math.max(0, nPast - 80);
+      const items = [];
+      for (let i = startI; i < nPast; i++) items.push({ seq: i, e: events[i] });
+      for (const w of PP) if (ppStarted(w, nPast) && ppOver(w, nPast, clock) && w.endSeq >= startI) items.push({ seq: w.endSeq, w });
+      items.sort((a, b) => b.seq - a.seq);
       let list = '';
       let curP = null;
-      const startI = Math.max(0, nPast - 80);
-      for (let i = nPast - 1; i >= startI; i--) {
-        const e = events[i];
-        if (e.p !== curP) {
-          if (curP !== null || e.p !== S.period) list += `<li class="empty">${pLong(e.p)}</li>`;
-          curP = e.p;
+      for (const it of items) {
+        const p = it.e ? it.e.p : it.w.p;
+        if (p !== curP) {
+          if (curP !== null || p !== S.period) list += `<li class="empty">${pLong(p)}</li>`;
+          curP = p;
         }
+        if (it.w) {
+          const w = it.w;
+          const res = `${w.goals} goal${w.goals === 1 ? '' : 's'}, ${w.att} attempt${w.att === 1 ? '' : 's'}, ${w.xg.toFixed(2)} xG`;
+          list += `<li class="ppend"><span class="t">${fmt(w.end)}</span><span class="b" style="background:#5a6883"></span>` +
+            `<span>Power play over · ${esc(w.team)} · ${res}${w.shg ? ` · ${w.shg} shorthanded goal against` : ''}</span></li>`;
+          continue;
+        }
+        const e = it.e;
         const col = e.ev === 'Goal' ? '#ffd166' : (COLORS[e.t] || COLORS[HOME]).fill;
+        const tag = e.ev === 'Penalty Taken' && PP.some((w) => w.ei === it.seq) ? '<span class="pptag">PP starts</span>'
+          : e.ev === 'Goal' && evPP[it.seq] ? '<span class="pptag">PP goal</span>' : '';
         list += `<li class="${e.ev === 'Goal' ? 'goal' : ''}"><span class="t">${fmt(e.c)}</span>` +
-          `<span class="b" style="background:${col}"></span><span>${describe(e)}</span></li>`;
+          `<span class="b" style="background:${col}"></span><span>${describe(e)}</span>${tag}</li>`;
       }
       $('pbpList').innerHTML = list || '<li class="empty">Press play to start the game.</li>';
     }

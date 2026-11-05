@@ -29,6 +29,8 @@ POSSESSION_FT = 6       # nearest skater within this distance of the puck has it
 XG_FEATURES = ["dist", "angle", "rebound", "one_timer", "traffic", "deflection", "power_play"]
 XG_L2 = 2.0             # ridge penalty for the xG logistic regression (picked by leave-one-game-out)
 REBOUND_SECONDS = 3     # an attempt within this long after a same-team attempt counts as a rebound
+PP_MINOR_SECONDS = 120  # a minor penalty's power play lasts at most 2:00
+PP_SETTLE_SECONDS = 5   # ignore "back to even" readings in the first few seconds (delayed-penalty noise)
 PUCK_OUTLIER_FT = 4    # puck points this far from their 7-frame median are treated as misreads
 PUCK_FILL_FRAMES = 30   # fill puck gaps up to 1 s (30 fps), never across a camera cut
 POSSESSION_EVENTS = {"Play", "Puck Recovery", "Takeaway", "Faceoff Win", "Zone Entry",
@@ -297,6 +299,61 @@ def xg_for(feat, model):
     return dict(zip(U.index, np.round(p, 3)))
 
 
+# ---------- power plays ----------
+
+def power_plays(ev, xg, periods):
+    """One window per penalty that put the other team on a power play.
+    Starts at the penalty; ends at the first of: the minor expiring (2:00), the power-play team
+    scoring, or the skater counts going back to even (e.g. a coincidental penalty). Each event
+    carries both teams' skater counts, which is what tells us when strength actually changes.
+    Penalties that never produce an uneven strength (coincidental minors) are skipped; a pulled
+    goalie with no penalty is never a power play because every window starts at a penalty."""
+    home = ev["Home_Team"].iloc[0]
+    teams = (home, ev["Away_Team"].iloc[0])
+    sk = lambda r, t: r["Home_Team_Skaters"] if t == home else r["Away_Team_Skaters"]
+    out = []
+    for gi, pen in ev[ev["Event"] == "Penalty Taken"].iterrows():
+        p = int(pen["Period"])
+        if p not in periods:
+            continue
+        shorthanded = pen["Team"]
+        pp_team = teams[1] if shorthanded == teams[0] else teams[0]
+        start = int(pen["clock_s"])
+        cap = max(0, start - PP_MINOR_SECONDS)
+        after = ev[(ev.index > gi) & (ev["Period"] == p) & (ev["clock_s"] <= start) & (ev["clock_s"] >= cap)]
+        end, reason, seen_uneven = cap, "expired", False
+        for _, r in after.iterrows():
+            up = sk(r, pp_team) > sk(r, shorthanded)
+            if up:
+                seen_uneven = True
+            elif seen_uneven and r["clock_s"] <= start - PP_SETTLE_SECONDS:
+                end, reason = int(r["clock_s"]), "even"
+                break
+        if not seen_uneven:
+            continue   # coincidental minors (4 on 4) or no strength change recorded: not a power play
+        out.append({"gi": gi, "p": p, "team": pp_team, "opp": shorthanded, "pl": pid(pen["Player_Id"]),
+                    "why": None if pd.isna(pen["Detail_1"]) else str(pen["Detail_1"]),
+                    "start": start, "end": end, "reason": reason})
+
+    # A power-play goal ends the window that expires first among that team's active windows.
+    for gi, g in ev[ev["Event"] == "Goal"].iterrows():
+        act = [w for w in out if w["p"] == g["Period"] and w["team"] == g["Team"]
+               and w["end"] <= g["clock_s"] <= w["start"] and w["reason"] != "goal" and gi > w["gi"]]
+        if act:
+            w = min(act, key=lambda w: w["end"])
+            w["end"], w["reason"] = int(g["clock_s"]), "goal"
+
+    for w in out:
+        inside = ev[(ev.index > w["gi"]) & (ev["Period"] == w["p"]) & (ev["clock_s"] <= w["start"]) & (ev["clock_s"] >= w["end"])]
+        mine = inside[inside["Team"] == w["team"]]
+        w["goals"] = int((mine["Event"] == "Goal").sum())
+        w["att"] = int(mine["Event"].isin(["Shot", "Goal"]).sum())
+        w["xg"] = round(float(sum(xg.get(i, 0) for i in mine.index)), 2)
+        w["shg"] = int(((inside["Team"] == w["opp"]) & (inside["Event"] == "Goal")).sum())
+        w.pop("gi")
+    return out
+
+
 def process_game(args):
     src, prefix, out_root, model = args
     gid = game_id(prefix)
@@ -374,6 +431,8 @@ def process_game(args):
             shifts.append([s["Team"], pid(s["Player_Id"]), int(s["period"]),
                            clock_to_sec(s["start_clock"]), clock_to_sec(s["end_clock"])])
 
+    pp = power_plays(ev, xg, periods)
+
     roster = {home: set(), away: set()}
     for team, j, *_ in shifts:
         roster[team].add(j)
@@ -386,7 +445,7 @@ def process_game(args):
         "periods": {str(p): {"n": periods[p]["n"], "fps": periods[p]["fps"],
                              "start": periods[p]["clock"][0], "len": PERIOD_LENGTH[p],
                              "poss": periods[p]["possTot"], "twp": periods[p]["twpTot"]} for p in periods},
-        "events": events, "shifts": shifts,
+        "events": events, "shifts": shifts, "pp": pp,
         "roster": {k: sorted(v, key=lambda j: (j != "Go", int(j) if j.isdigit() else 0)) for k, v in roster.items()},
     }
     write_js(os.path.join(out, "meta.js"), "RS_META", meta)
@@ -405,6 +464,7 @@ def process_game(args):
         "sog": {home: count(home, sog), away: count(away, sog)},
         "pen": {home: count(home, lambda e: e["ev"] == "Penalty Taken"), away: count(away, lambda e: e["ev"] == "Penalty Taken")},
         "xg": {t: round(sum(e.get("xg", 0) for e in events if e["t"] == t), 2) for t in (home, away)},
+        "pp": {t: [sum(w["goals"] for w in pp if w["team"] == t), sum(1 for w in pp if w["team"] == t)] for t in (home, away)},
         "poss": {home: sum(periods[p]["possTot"][0] for p in periods), away: sum(periods[p]["possTot"][1] for p in periods)},
         "ot": 4 in periods,
         "goals": [{"p": g["p"], "c": g["c"], "t": g["t"], "pl": g["pl"], "d1": g["d1"], "xy": g.get("xy")} for g in goals],
