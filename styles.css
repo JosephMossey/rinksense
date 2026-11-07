@@ -331,10 +331,10 @@ td.mvempty { text-align: left; color: var(--dim); font-weight: 400; padding: 12p
 .gfoot .gstat + .gstat { margin-left: 0; }
 .sitefoot .mlinkfoot { color: var(--muted); }
 
-/* nav: site links (Players) on the right, apart from the sports; on phones keep only the first "soon" sport */
-.navlinks { margin-left: auto; display: flex; gap: 4px; height: 100%; }
-.navlink { display: flex; align-items: center; padding: 0 12px; font-size: 13px; font-weight: 500; color: var(--muted); text-decoration: none; border-bottom: 1.5px solid transparent; }
-.navlink:hover { color: var(--text); }
-.navlink.on { color: var(--text); border-bottom-color: var(--gold); }
-@media (max-width: 760px) { .navlink { padding: 0 8px; } }
-@media (max-width: 480px) { .sport.soon + .sport.soon { display: none; } }
+/* NHL section tabs (Games / Players / How it works), part of the sticky nav */
+.subnav { border-top: 1px solid var(--line); }
+.subin { max-width: 1320px; margin: 0 auto; padding: 0 32px; height: 40px; display: flex; gap: 22px; overflow-x: auto; scrollbar-width: none; }
+.subtab { display: flex; align-items: center; font-size: 12.5px; font-weight: 500; color: var(--muted); text-decoration: none; border-bottom: 1.5px solid transparent; white-space: nowrap; }
+.subtab:hover { color: var(--text); }
+.subtab.on { color: var(--text); border-bottom-color: var(--gold); }
+@media (max-width: 760px) { .subin { padding: 0 16px; gap: 18px; } }
