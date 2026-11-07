@@ -23,7 +23,7 @@
       <span class="sport soon">NFL<em>Soon</em></span>
     </div>
   </div>
-  <div class="subnav" aria-label="MLB sections"><div class="subin"><a class="subtab" href="index.html">Games</a><a class="subtab on" href="methods.html" aria-current="page">How it works</a></div></div>
+  <div class="subnav" aria-label="MLB sections"><div class="subin"><a class="subtab" href="index.html">Games</a><a class="subtab" href="players.html">Players</a><a class="subtab on" href="methods.html" aria-current="page">How it works</a></div></div>
 </nav>
 
 <main class="wrap methods">
@@ -38,6 +38,7 @@
     <li><a href="#stuff">Stuff+ and xWhiff</a></li>
     <li><a href="#tunnels">Pitch tunnels</a></li>
     <li><a href="#decisions">Bullpen decisions</a></li>
+    <li><a href="#players">Player pages</a></li>
     <li><a href="#limits">Limits</a></li>
   </ul>
 
@@ -97,6 +98,17 @@
       <li><b>Result</b> is the team's actual win-probability change from the new pitcher's first pitch to his last.</li>
     </ul>
     <p>The card also shows what a manager watches: pitch count, trip through the order, fastball velocity in the last 10 fastballs vs his season average, and Stuff+ over his last 15 pitches. A process grade within ±0.25% is called a toss-up. Across the 326 playoff pitching changes, most process grades land within ±1% and the biggest are about ±3%. Those come in close games in the 8th and 9th, where a single run can be worth 30–40% of a win.</p>
+  </section>
+
+  <section class="card msec" id="players">
+    <span class="tag">Players</span>
+    <h2>Player pages</h2>
+    <p>Every player who pitched or batted in the 2026 postseason gets a page. The headline numbers are postseason only; regular-season numbers appear in brackets for context.</p>
+    <ul>
+      <li><b>Pitchers.</b> Innings are counted from outs recorded while he was the pitcher of record. Stuff+ and xWhiff are the same models as in the replay, averaged over his pitches. The movement chart plots every pitch's induced vertical break against its horizontal break toward his arm side. Tunnel pairs average the decision-point and plate gaps for back-to-back pitches of different types in the same at-bat (3+ pairs needed). "When he was pulled" reuses the bullpen grades from the games.</li>
+      <li><b>Hitters.</b> AVG, OBP and SLG use standard definitions. wOBA uses the same 2026 weights as xwOBA, so the two can be compared directly; a big gap usually means luck or defense, not skill. Chase rate is swings at pitches Statcast marks outside the zone. The fastball/breaking/offspeed split uses the pitch that ended each plate appearance and is shown with its sample size.</li>
+      <li><b>WPA</b> (win probability added) sums the change in the team's win probability over each of the player's plate appearances, from the win-probability model above. A pitcher gets credit for the plate appearances he finished.</li>
+    </ul>
   </section>
 
   <section class="card msec" id="limits">

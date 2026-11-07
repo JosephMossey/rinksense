@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MLB Player · RINKSENSE</title>
+<meta name="description" content="A player's 2026 MLB postseason: pitch mix, movement, tunnels, spray chart, biggest moments and game log.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+<link rel="stylesheet" href="../report.css">
+<link rel="stylesheet" href="../players.css">
+<link rel="stylesheet" href="mlb.css">
+</head>
+<body>
+<nav class="sitenav">
+  <div class="navin">
+    <a class="brand" href="../index.html">RINKSENSE</a>
+    <div class="sports">
+      <a class="sport" href="../index.html">NHL</a>
+      <a class="sport on" href="index.html">MLB</a>
+      <span class="sport soon">NBA<em>Soon</em></span>
+      <span class="sport soon">NFL<em>Soon</em></span>
+    </div>
+  </div>
+  <div class="subnav" aria-label="MLB sections"><div class="subin"><a class="subtab" href="index.html">Games</a><a class="subtab on" href="players.html">Players</a><a class="subtab" href="methods.html">How it works</a></div></div>
+</nav>
+
+<main class="wrap pdetail">
+  <header class="ghead">
+    <a class="back" href="players.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>All MLB players</a>
+    <div class="pdtop">
+      <div>
+        <div class="eyebrow" id="pdRole"></div>
+        <h1 class="pdname" id="pdName">Player</h1>
+      </div>
+      <div class="gstats pdline" id="pdLine"></div>
+    </div>
+  </header>
+  <div id="pdBody"></div>
+
+  <footer class="sitefoot">
+    <span>Data © MLB Advanced Media, via the MLB Stats API and Baseball Savant. Used for individual, non-commercial purposes. <a href="methods.html">How every stat is built</a></span>
+    <span>Built by Joseph Mossey · <a href="https://github.com/JosephMossey/rinksense" target="_blank" rel="noopener">Source on GitHub</a></span>
+  </footer>
+</main>
+
+<script src="common.js"></script>
+<script src="player.js"></script>
+</body>
+</html>

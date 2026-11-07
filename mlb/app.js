@@ -151,8 +151,8 @@
       const s = S[k];
       const pa = s ? P[s.a] : P[0];
       const thrown = S.slice(0, Math.max(k + 1, 0)).filter((p) => p.pit === pa.pit && p.t).length;
-      $('matchupLine').innerHTML = `<span><b>${esc(name(pa.pit))}</b> ${pa.ph}HP · ${thrown} pitches</span>` +
-        `<span><b>${esc(name(pa.bat))}</b> ${pa.bs}HB · ${batterToday(pa.bat, pa.p0)}</span>`;
+      $('matchupLine').innerHTML = `<span><a href="player.html?p=${pa.pit}"><b>${esc(name(pa.pit))}</b></a> ${pa.ph}HP · ${thrown} pitches</span>` +
+        `<span><a href="player.html?p=${pa.bat}"><b>${esc(name(pa.bat))}</b></a> ${pa.bs}HB · ${batterToday(pa.bat, pa.p0)}</span>`;
     }
 
     function drawPitch() {
@@ -325,7 +325,7 @@
           html += `<tr class="thead"><td colspan="9"><i style="background:var(--${side === 'home' ? 'teamD' : 'teamA'})"></i>${esc(T[side].name)}</td></tr>`;
           for (const [id, r] of rows[side]) {
             const st = r.st.length ? Math.round(r.st.reduce((a, b) => a + b, 0) / r.st.length) : '–';
-            html += `<tr><td title="${esc(name(id))}">${esc(last(name(id)))}</td><td>${ip(r.outs)}</td><td>${r.p}</td><td>${r.h}</td><td>${r.bb}</td><td>${r.k}</td><td>${r.wh}</td><td>${r.top ? r.top.toFixed(1) : '–'}</td><td class="${st >= 115 ? 'hl' : ''}">${st}</td></tr>`;
+            html += `<tr><td title="${esc(name(id))}"><a href="player.html?p=${id}">${esc(last(name(id)))}</a></td><td>${ip(r.outs)}</td><td>${r.p}</td><td>${r.h}</td><td>${r.bb}</td><td>${r.k}</td><td>${r.wh}</td><td>${r.top ? r.top.toFixed(1) : '–'}</td><td class="${st >= 115 ? 'hl' : ''}">${st}</td></tr>`;
           }
           if (!rows[side].size) html += '<tr><td colspan="9" class="mvempty">No pitches yet.</td></tr>';
         }
@@ -350,7 +350,7 @@
       let html = '<thead><tr><th>Batter</th><th>AB</th><th>H</th><th>HR</th><th>RBI</th><th>BB</th><th>K</th><th>xwOBA</th></tr></thead><tbody>';
       for (const [id, r] of rows) {
         const xw = r.xw.length ? (r.xw.reduce((a, b) => a + b, 0) / r.xw.length).toFixed(3).replace(/^0/, '') : '–';
-        html += `<tr><td title="${esc(name(id))}">${esc(last(name(id)))}</td><td>${r.ab}</td><td class="${r.h ? 'hl' : ''}">${r.h}</td><td>${r.hr}</td><td>${r.rbi}</td><td>${r.bb}</td><td>${r.k}</td><td>${xw}</td></tr>`;
+        html += `<tr><td title="${esc(name(id))}"><a href="player.html?p=${id}">${esc(last(name(id)))}</a></td><td>${r.ab}</td><td class="${r.h ? 'hl' : ''}">${r.h}</td><td>${r.hr}</td><td>${r.rbi}</td><td>${r.bb}</td><td>${r.k}</td><td>${xw}</td></tr>`;
       }
       if (!rows.size) html += '<tr><td colspan="8" class="mvempty">Hasn\'t batted yet.</td></tr>';
       $('boxTable').innerHTML = html + '</tbody>';
