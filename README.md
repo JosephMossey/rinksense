@@ -1,65 +1,69 @@
 # RINKSENSE
 
-**Watch the game the way the data saw it.** RINKSENSE is a personal sports-analytics project that rebuilds full hockey games from player and puck tracking data and replays them in the browser. It's a static site: no server, no framework, no build step.
+I love sports, and I've wanted to build something like this for a while. RINKSENSE takes real player and puck tracking data from hockey games and turns it into a replay you can actually watch, with live stats, expected goals, win probability and a full report for every game.
 
-**NHL page (`index.html`)**
-- Every game as a card with the final score, a goal timeline and shots on goal. You can filter by team and sort by newest, oldest or most goals.
-- An "every goal, one net" rink map. Click any goal to open its game.
+**Live site:** [josephmossey.github.io/rinksense](https://josephmossey.github.io/rinksense/)
+**Follow along on X:** [@jmanalytics](https://x.com/jmanalytics)
 
-**Game report (`report.html?g=<game-id>`)**: the full-game breakdown (it includes the final result; the replay never does).
-- Win probability over the whole game, with power plays shaded and the three biggest turning points, each linking straight to that moment in the replay.
-- Team comparison: xG, shots, possession, power plays, offensive-zone time, team spacing, and reaction burst after turnovers.
-- Skating and movement for every player: top speed, burst acceleration, bursts per 10 minutes, feet per minute, sprint share, with vs without the puck, speed zones, and shift-start speed across the game (a fatigue signal).
-- Pass networks by team and period.
-- A share card (1200 × 630 image) with an auto-written headline.
+![Replay at the first goal of the Oct 11 game](docs/img/replay.png)
 
-**Methods (`methods.html`)**: how every stat and model is built, how accurate it is, and its limits.
+## Why I built it
 
-**Game replay (`game.html?g=<game-id>`)**
-- Smooth animated replay at 1x / 1.5x / 2x / 5x. You can change speed mid-play without restarting, and overtime is supported.
-- Live scoreboard that only changes at the tracked goal frame, plus a team stat strip: expected goals, shots on goal, shot attempts, penalties, and tracked possession with time with puck.
-- **Expected goals (xG):** a ridge logistic regression trained on 900 unblocked shots (58 goals) from all 10 games. Its inputs are distance, angle, rebound (within 3 s), one-timer, traffic, deflection and power play. Tested leave-one-game-out (each game predicted by a model that never saw it), it scores AUC 0.78 with 12% lower log loss than a flat shooting-percentage baseline, and its predicted goals total 58.5 against 58 actual. The fitted model and these numbers are written to `data/xg_model.js`.
-- **Power plays:** each penalty opens a power-play window. The window ends at the 2:00 expiry, at a power-play goal, or when the event log's skater counts go back to even (e.g. offsetting minors). Delayed-penalty extra attackers and late-game pulled goalies are never counted as power plays. The replay shows a live PP countdown to the normal expiry, so it never hints at an early goal. It also tints the rink, counts power plays as goals / chances with PP xG, shades power plays on the momentum chart, and adds a recap line to the play-by-play.
-- **Time with puck / possession:** in each tracked frame, the nearest skater within 6 ft of the puck has it. Summed per player that's time with puck (TWP); summed per team it's possession.
-- Momentum chart of shot attempts per 2 minutes, filled in only up to the current moment, and a short puck trail on the rink.
-- Players the broadcast camera isn't tracking stay on the ice (faded) using the shift chart, so the rink always shows who's actually out there.
-- Puck-carrier highlight: the nearest skater within 8 ft of the puck gets a gold ring.
-- Live player stats per team (TOI, SOG, G, estimated A\*, PEN), all computed through the current game time.
-- GOAL banner over the rink, a play-by-play feed, period buttons, and a scrubber with goal markers.
+A few reasons. I have a real passion for sports and wanted to make something that shows it. I also wanted a project that shows what I actually know about the game, not just that I can make a chart. And I wanted something real for my portfolio.
 
-It started as a Streamlit/Plotly prototype (`tracking_app_hockey.py`). Plotly needed about 6,900 frames per period and was far too slow, so this version draws an SVG rink and animates it with `requestAnimationFrame`. It interpolates 15 fps tracking data up to the display refresh rate, and each frame takes about 1 ms to render.
+Right now it's hockey. The plan is to add more sports over time (baseball is next).
 
-## Run it
+## What it does
 
-Open `index.html` in a browser. The data files are plain `<script>` files, so this works straight from disk and on GitHub Pages.
+**The replay.** Every game plays back smoothly at 1x up to 5x. The score only changes when the goal actually happens, so nothing gets spoiled. As you watch you get a live box score, expected goals (xG), possession, power plays with a countdown, momentum, win probability and a skating tab. You can copy a link to any moment and send it to someone.
 
-## Rebuild the data
+**The game report.** A full breakdown after the fact: how win probability moved all game and the three biggest turning points (each one jumps you straight to that moment in the replay), a team comparison, a pass network, and a share card you can post.
 
-The raw CSVs are not in this repo. Put each game's `*Events.csv`, `*Shifts.csv` and `*Tracking_P1/P2/P3.csv` files (plus `*Tracking_POT.csv` for overtime) in one folder, then run this from Anaconda Prompt:
+![Win probability and turning points](docs/img/report.png)
+
+**Skating and movement.** Top speed, how fast players accelerate, how many bursts they make, how much they skate with and without the puck, and whether they slow down at the start of shifts as the game goes on. Click any player for their profile.
+
+![Skating and movement table with a player profile](docs/img/movement.png)
+
+**How it's built.** I put every model and stat on a [methods page](https://josephmossey.github.io/rinksense/methods.html): how it works, how accurate it is, and what it can't see.
+
+## What was hard
+
+Honestly the hardest part was getting started. It felt like a long, long process and planning it all out was overwhelming, so I just started and kept organizing as I went.
+
+After that it was errors. The site wouldn't load, the playback was choppy and jagged at first, and players kept disappearing because the tracking comes from the broadcast camera and anyone off screen just vanishes from the data. Fixing those taught me a lot:
+
+- The tracking jitters, and sometimes it swaps two players for a frame, which made it look like guys were skating 1,000+ mph. I had to clean every track before any speed stat meant anything.
+- Players only exist in the data while they're on camera, so I use the shift chart to keep everyone who's actually on the ice visible (faded when the camera can't see them), and every skating stat is per tracked minute.
+- The broadcast cuts away a lot, so nothing is allowed to slide across a camera cut.
+
+## What I'm proud of
+
+Taking something I'd had in my head for a long time and actually putting it out there. There's still a lot I want to add, but it's real now.
+
+![The NHL games page](docs/img/games.png)
+
+## How it works (short version)
+
+- `scripts/preprocess.py` turns the raw CSVs into small data files the site loads. It also trains the expected goals model (logistic regression on 900 unblocked shots, tested on games it never saw, AUC 0.78) and works out power plays.
+- `scripts/analytics.py` does the skating metrics, team shape, win probability, turning points and pass networks.
+- The site itself is plain HTML, CSS and JavaScript with no framework, so it opens fast and runs on GitHub Pages.
+
+To rebuild the data from the CSVs (Anaconda Prompt):
 
 ```
 python -m pip install pandas numpy
 python scripts/preprocess.py --src "C:\path\to\csv\folder"
 ```
 
-This writes `data/games.js`, which indexes every game for the NHL page, and one folder per game in `data/games/<game-id>/`. Ten games come to about 50 MB.
-
-## How it works
-
-| Piece | What it does |
-|---|---|
-| `scripts/preprocess.py` | Processes games in parallel. It downsamples 30 fps tracking to 15 fps as 0.1 ft integers, and cleans the tracking clock: stray blocks are dropped and the clock is forced to only count down. It maps every event to a playback frame, using the tracking goal marker for goals. It also estimates assists and builds the game summaries. |
-| `scripts/analytics.py` | Computes movement metrics from the raw 30 fps tracking (with ID-swap and jitter cleanup), team shape, the win-probability timeline and turning points, and pass networks. They're written to `data/games/<id>/report.js`. |
-| `report.html`, `report-page.js`, `report.css`, `methods.html` | The game report and methods pages. |
-| `hub.js` | Runs the NHL page: game cards, filters and the goal map. |
-| `app.js` | Runs the replay: playback, interpolation, carrier detection, the live score, stats and play-by-play. |
-| `index.html`, `game.html`, `styles.css` | The pages and the shared theme. |
-
-Notes on the data:
-- Coordinates are in feet with center ice at (0, 0).
-- The source has no assist field, so A\* is an estimate: up to two teammates who touched the puck since the scoring team last gained possession.
-- A few periods only have tracking for part of the period. The replay says where tracking starts, and earlier events still count toward the score and stats.
+Then open `index.html`.
 
 ## Data
 
-The tracking and event data is Stathletes' public hockey dataset. It's free to use for non-commercial work.
+Tracking and event data from Stathletes' public hockey dataset (10 games), used under its non-commercial terms. The raw CSVs aren't in this repo.
+
+## What's next
+
+- A cleaner pass network
+- Player pages across every game
+- Baseball
