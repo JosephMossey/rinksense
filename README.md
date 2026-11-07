@@ -6,6 +6,15 @@
 - Every game as a card with the final score, a goal timeline and shots on goal. You can filter by team and sort by newest, oldest or most goals.
 - An "every goal, one net" rink map. Click any goal to open its game.
 
+**Game report (`report.html?g=<game-id>`)**: the full-game breakdown (it includes the final result; the replay never does).
+- Win probability over the whole game, with power plays shaded and the three biggest turning points, each linking straight to that moment in the replay.
+- Team comparison: xG, shots, possession, power plays, offensive-zone time, team spacing, and reaction burst after turnovers.
+- Skating and movement for every player: top speed, burst acceleration, bursts per 10 minutes, feet per minute, sprint share, with vs without the puck, speed zones, and shift-start speed across the game (a fatigue signal).
+- Pass networks by team and period.
+- A share card (1200 × 630 image) with an auto-written headline.
+
+**Methods (`methods.html`)**: how every stat and model is built, how accurate it is, and its limits.
+
 **Game replay (`game.html?g=<game-id>`)**
 - Smooth animated replay at 1x / 1.5x / 2x / 5x. You can change speed mid-play without restarting, and overtime is supported.
 - Live scoreboard that only changes at the tracked goal frame, plus a team stat strip: expected goals, shots on goal, shot attempts, penalties, and tracked possession with time with puck.
@@ -40,6 +49,8 @@ This writes `data/games.js`, which indexes every game for the NHL page, and one 
 | Piece | What it does |
 |---|---|
 | `scripts/preprocess.py` | Processes games in parallel. It downsamples 30 fps tracking to 15 fps as 0.1 ft integers, and cleans the tracking clock: stray blocks are dropped and the clock is forced to only count down. It maps every event to a playback frame, using the tracking goal marker for goals. It also estimates assists and builds the game summaries. |
+| `scripts/analytics.py` | Computes movement metrics from the raw 30 fps tracking (with ID-swap and jitter cleanup), team shape, the win-probability timeline and turning points, and pass networks. They're written to `data/games/<id>/report.js`. |
+| `report.html`, `report-page.js`, `report.css`, `methods.html` | The game report and methods pages. |
 | `hub.js` | Runs the NHL page: game cards, filters and the goal map. |
 | `app.js` | Runs the replay: playback, interpolation, carrier detection, the live score, stats and play-by-play. |
 | `index.html`, `game.html`, `styles.css` | The pages and the shared theme. |

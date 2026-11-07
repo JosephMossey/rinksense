@@ -297,3 +297,36 @@ td.twp { color: var(--soft); }
 .pptag { margin-left: auto; flex: none; font-size: 9.5px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--gold); border: 1px solid rgba(255, 209, 102, .4); border-radius: 5px; padding: 1px 6px; }
 .pbp li.ppend { color: var(--muted); }
 @media (max-width: 600px) { .ppnote { display: none; } .ppbar { width: 44px; } }
+
+/* report link, moment links, movement view, live win probability */
+.replink { display: inline-flex; align-items: center; gap: 2px; margin-left: 6px; font-size: 12px; font-weight: 500; color: var(--gold); text-decoration: none; }
+.replink svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.replink:hover { text-decoration: underline; }
+.linkbtn { flex: none; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: transparent; border: 1px solid var(--line-2); cursor: pointer; }
+.linkbtn svg { width: 15px; height: 15px; fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; }
+.linkbtn:hover svg { stroke: var(--gold); }
+.toast { position: absolute; left: 50%; bottom: 16%; transform: translateX(-50%) translateY(6px); max-width: 92%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--text); background: rgba(9, 14, 26, .92); border: 1px solid var(--gold); border-radius: 8px; padding: 6px 12px; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; z-index: 3; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.viewtabs { display: flex; gap: 14px; margin: -4px 18px 8px; border-bottom: 1px solid var(--line); }
+.vtab { background: none; border: none; border-bottom: 1.5px solid transparent; padding: 4px 0 7px; margin-bottom: -1px; color: var(--muted); font-size: 12px; font-weight: 500; cursor: pointer; }
+.vtab:hover { color: var(--text); }
+.vtab.on { color: var(--text); border-bottom-color: var(--gold); }
+td.mvempty { text-align: left; color: var(--dim); font-weight: 400; padding: 12px 8px; white-space: normal; }
+.wpmini { padding-bottom: 14px; }
+#wpMini { display: block; width: calc(100% - 36px); height: 74px; margin: 0 18px; }
+#wpNowTxt a { color: var(--dim); }
+#wpNowTxt b { font-weight: 600; }
+
+/* game card: whole card opens the replay; the report link sits above that */
+.gcard { position: relative; }
+.gcard .cover { position: absolute; inset: 0; border-radius: inherit; z-index: 1; }
+.gcard .cover:focus-visible { outline: 1px solid var(--gold); outline-offset: 2px; }
+.gcard:has(.cover:hover) { border-color: var(--line-2); background: var(--card-2); }
+.gcard:has(.cover:hover) .watch { color: var(--gold); }
+.gcard:has(.cover:hover) .watch svg { transform: translateX(3px); }
+.gacts { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
+.gacts .rep { position: relative; z-index: 2; font-size: 12px; font-weight: 500; color: var(--muted); text-decoration: none; border: 1px solid var(--line-2); border-radius: 8px; padding: 5px 10px; }
+.gacts .rep:hover { color: var(--gold); border-color: var(--gold); }
+.gacts .watch { margin-left: 0; }
+.gfoot .gstat + .gstat { margin-left: 0; }
+.sitefoot .mlinkfoot { color: var(--muted); }

@@ -20,6 +20,8 @@ from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 import pandas as pd
 
+import analytics as A
+
 KEEP_EVERY = 2          # 30 fps -> 15 fps; the page interpolates between frames
 SCALE = 10              # store feet * 10 as ints (0.1 ft precision)
 GOAL_MARKER_TOL = 3     # seconds a tracking goal marker may differ from the event clock
@@ -63,7 +65,7 @@ def game_id(prefix):
     return f"{m.group(1)}-{m.group(2).lower()}-at-{m.group(3).lower()}"
 
 
-def build_period(path, period, home_team, away_team):
+def build_period(path, period, home_team, away_team, shift_wins=None):
     t = pd.read_csv(path, low_memory=False)
     ids = pd.unique(t["Image Id"])
     frame_of = {fid: i for i, fid in enumerate(ids)}
@@ -154,7 +156,12 @@ def build_period(path, period, home_team, away_team):
     poss_tot = [int((owner_team == home_team).sum()), int((owner_team == away_team).sum())]
     twp = {f"{ents[e][0]}|{ents[e][1]}": int(c) for e, c in own[own >= 0].value_counts().items()}
 
+    # movement / team-shape analytics from the full 30 fps tracking (kept out of pN.js)
+    mv = A.movement_period(t, full_clock, segment, (clean_x.to_numpy(), clean_y.to_numpy()),
+                           home_team, away_team, PERIOD_LENGTH[period], shift_wins or {})
+
     return {
+        "_mv": mv,
         "period": period,
         "fps": 30 / KEEP_EVERY,
         "n": n,
@@ -354,8 +361,50 @@ def power_plays(ev, xg, periods):
     return out
 
 
+def build_report(ev, events, pp, periods, home, away, wpm):
+    """Everything the Game report page needs (and the replay's live Movement tab)."""
+    lens = {p: PERIOD_LENGTH[p] for p in periods}
+    dirs = A.attack_dirs(ev, list(periods))
+
+    players = {}
+    shape = {t: {"spacing": [0.0, 0], "react": [0.0, 0], "oz": 0} for t in (home, away)}
+    for p in sorted(periods):
+        mv = periods[p]["_mv"]
+        for key, s in mv["players"].items():
+            g = players.setdefault(key, {"frames": 0, "dist": 0, "zones": [0, 0, 0, 0], "with": [0, 0], "without": [0, 0],
+                                         "bursts": 0, "top": None, "acc": None, "buckets": {}, "entry": []})
+            g["frames"] += s["frames"]; g["dist"] += s["dist"]; g["bursts"] += s["bursts"]
+            g["zones"] = [a + b for a, b in zip(g["zones"], s["zones"])]
+            for side in ("with", "without"):
+                g[side] = [g[side][0] + s[side][0], g[side][1] + s[side][1]]
+            g["buckets"][str(p)] = s["buckets"]
+            g["entry"] += [[p] + e for e in s["entry"]]
+            tops = [b[3] for b in s["buckets"] if b[3] is not None]
+            accs = [b[4] for b in s["buckets"] if b[4] is not None]
+            if tops:
+                g["top"] = max(tops + ([g["top"]] if g["top"] else []))
+            if accs:
+                g["acc"] = max(accs + ([g["acc"]] if g["acc"] else []))
+        for t in (home, away):
+            sp = mv["spacing"].get(t, [0, 0])
+            shape[t]["spacing"][0] += sp[0]; shape[t]["spacing"][1] += sp[1]
+            rc = mv["react"].get(t, [0, 0])
+            shape[t]["react"][0] += rc[0]; shape[t]["react"][1] += rc[1]
+            oz = mv["oz"].get(t, [0, 0])
+            shape[t]["oz"] += oz[0] if dirs.get((t, p), 1) == 1 else oz[1]
+    team_shape = {t: {"spacing": round(v["spacing"][0] / v["spacing"][1], 1) if v["spacing"][1] else None,
+                      "react": round(v["react"][0] / v["react"][1], 1) if v["react"][1] else None,
+                      "ozSeconds": int(round(v["oz"] / A.FPS))} for t, v in shape.items()}
+
+    wp = A.win_probability(events, pp, home, away, list(periods), lens, wpm)
+    passes = A.pass_network(ev, list(periods), dirs, pid)
+    return {"players": players, "shape": team_shape, "winProb": wp, "passes": passes,
+            "buckets": {str(p): periods[p]["_mv"]["nb"] for p in periods},
+            "bucketSeconds": A.BUCKET, "fps": A.FPS}
+
+
 def process_game(args):
-    src, prefix, out_root, model = args
+    src, prefix, out_root, model, wpm = args
     gid = game_id(prefix)
     out = os.path.join(out_root, "games", gid)
     os.makedirs(out, exist_ok=True)
@@ -364,11 +413,18 @@ def process_game(args):
     sh = pd.read_csv(os.path.join(src, prefix + "Shifts.csv"))
     home, away = ev["Home_Team"].iloc[0], ev["Away_Team"].iloc[0]
 
+    shift_wins = {}
+    for _, s in sh.iterrows():
+        j = pid(s["Player_Id"])
+        if j and j != "Go":
+            shift_wins.setdefault(int(s["period"]), {}).setdefault(f"{s['Team']}|{j}", []).append(
+                (clock_to_sec(s["start_clock"]), clock_to_sec(s["end_clock"])))
+
     periods = {}
     for p, suffix in PERIOD_FILES.items():
         path = os.path.join(src, prefix + suffix)
         if os.path.exists(path):
-            periods[p] = build_period(path, p, home, away)
+            periods[p] = build_period(path, p, home, away, shift_wins.get(p, {}))
 
     ev["pid"] = ev["Player_Id"].map(pid)
     ev["pid2"] = ev["Player_Id_2"].map(pid)
@@ -449,9 +505,11 @@ def process_game(args):
         "roster": {k: sorted(v, key=lambda j: (j != "Go", int(j) if j.isdigit() else 0)) for k, v in roster.items()},
     }
     write_js(os.path.join(out, "meta.js"), "RS_META", meta)
+    report = build_report(ev, events, pp, periods, home, away, wpm)
+    write_js(os.path.join(out, "report.js"), "RS_REPORT", report)
     for p in periods:
         P = dict(periods[p])
-        for k in ("goalMarkers", "possTot", "twpTot"):
+        for k in ("goalMarkers", "possTot", "twpTot", "_mv"):
             P.pop(k)
         write_js(os.path.join(out, f"p{p}.js"), f"RS_P{p}", P)
 
@@ -471,6 +529,7 @@ def process_game(args):
         "periodLength": {str(p): PERIOD_LENGTH[p] for p in periods},
         "trackStart": {str(p): periods[p]["clock"][0] for p in periods},
         "frames": sum(P["n"] for P in periods.values()) * KEEP_EVERY,
+        "wpBrier": report["winProb"]["brier"], "wpOutcome": report["winProb"]["outcome"],
         "events": len(events),
     }
     print(f"  {gid}: {away} {summary['score'][away]} @ {home} {summary['score'][home]}"
@@ -478,10 +537,27 @@ def process_game(args):
     return summary
 
 
+def fit_wp(src, prefixes):
+    """League scoring rate and power-play multipliers for the win-probability model."""
+    rows = []
+    for pre in prefixes:
+        ev = pd.read_csv(os.path.join(src, pre + "Events.csv"))
+        ev["clock_s"] = ev["Clock"].map(clock_to_sec)
+        per = sorted(int(p) for p in ev["Period"].unique())
+        pp = power_plays(ev, {}, {p: 1 for p in per})
+        evs = [{"ev": e} for e in ev["Event"]]
+        rows.append((evs, pp, sum(PERIOD_LENGTH[p] for p in per), None))
+    wpm = A.fit_wp_rates(rows)
+    print(f"Win prob model: {wpm['goals']} goals over {wpm['team_seconds']} team-seconds "
+          f"({wpm['rate'] * 3600:.2f} per team per 60), PP x{wpm['pp_mult']}, SH x{wpm['sh_mult']}")
+    return wpm
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--src", default="raw", help="folder with the Big Data Cup CSVs")
     ap.add_argument("--out", default="data")
+    ap.add_argument("--game", default=None, help="only write games whose id contains this (models still fit on all)")
     ap.add_argument("--workers", type=int, default=max(1, min(5, (os.cpu_count() or 2) - 1)))
     a = ap.parse_args()
 
@@ -492,10 +568,16 @@ def main():
     os.makedirs(os.path.join(a.out, "games"), exist_ok=True)
     model = fit_xg(a.src, prefixes)
     write_js(os.path.join(a.out, "xg_model.js"), "RS_XG", model)
+    wpm = fit_wp(a.src, prefixes)
+    write_js(os.path.join(a.out, "wp_model.js"), "RS_WP", wpm)
     print(f"Processing {len(prefixes)} games with {a.workers} workers...")
+    todo = [p for p in prefixes if not a.game or a.game in game_id(p)]
     with ProcessPoolExecutor(a.workers) as pool:
-        games = list(pool.map(process_game, [(a.src, p, a.out, model) for p in prefixes]))
+        games = list(pool.map(process_game, [(a.src, p, a.out, model, wpm) for p in todo]))
     games.sort(key=lambda g: (g["date"], g["id"]))
+    if a.game:
+        print("(--game set: games.js not rewritten)")
+        return
     write_js(os.path.join(a.out, "games.js"), "RS_GAMES", games)
     print(f"Wrote {len(games)} games to {a.out}")
 

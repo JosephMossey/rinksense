@@ -18,12 +18,13 @@
   });
 
   loadScript(`${BASE}/meta.js`)
-    .then(() => start(window.RS_META))
+    .then(() => loadScript(`${BASE}/report.js`).catch(() => null))   // optional: movement + win probability
+    .then(() => start(window.RS_META, window.RS_REPORT || null))
     .catch(() => {
       $('loading').innerHTML = 'That game could not be found. <a href="index.html">Back to all games</a>';
     });
 
-  function start(META) {
+  function start(META, REPORT) {
     const HOME = META.home, AWAY = META.away;
     const SVGNS = 'http://www.w3.org/2000/svg';
     const CARRIER_MAX_FT = 8;      // nearest skater only counts as the carrier within this distance
@@ -57,7 +58,7 @@
     };
 
     // ---------- state ----------
-    const S = { period: PERIODS[0], pos: 0, playing: false, speed: 1, data: {}, last: 0, key: '', dragging: false, statsTeam: HOME };
+    const S = { period: PERIODS[0], pos: 0, playing: false, speed: 1, data: {}, last: 0, key: '', dragging: false, statsTeam: HOME, view: 'box' };
     const events = META.events;   // sorted by (period, frame)
 
     // ---------- page chrome ----------
@@ -522,6 +523,65 @@
       for (const b of bins) { b.allH = count(b, HOME); b.allA = count(b, AWAY); max = Math.max(max, b.allH, b.allA); }
       return { bins, max };
     })();
+    // ---------- live movement (whole minutes up to now, never later) ----------
+    const BOX_HEAD = $('statsHead').innerHTML;
+    const MPH = 0.681818;
+    function renderMovement(clock) {
+      const len = META.periods[S.period].len || 1200;
+      const curB = Math.floor((len - clock) / (REPORT.bucketSeconds || 60));
+      const fps = REPORT.fps || 30;
+      const rows = [];
+      for (const [key, v] of Object.entries(REPORT.players)) {
+        const [team, j] = key.split('|');
+        if (team !== S.statsTeam) continue;
+        let fr = 0, dist = 0, top = 0, acc = 0, bursts = 0;
+        for (const p of PERIODS) {
+          if (p > S.period) break;
+          for (const b of v.buckets[p] || []) {
+            if (p === S.period && b[0] >= curB) continue;
+            fr += b[1]; dist += b[2]; bursts += b[5];
+            if (b[3] != null) top = Math.max(top, b[3]);
+            if (b[4] != null) acc = Math.max(acc, b[4]);
+          }
+        }
+        if (fr >= fps * 30) rows.push({ j, min: fr / fps / 60, dist, top, acc, bursts });
+      }
+      rows.sort((a, b) => b.top - a.top);
+      $('statsHead').innerHTML = '<tr><th>#</th><th title="Top speed">Top</th><th title="Best speed gained in 1 s">Burst</th><th title="Bursts per 10 tracked minutes">Bursts/10</th><th title="Feet per tracked minute">Ft/min</th><th title="Tracked minutes">Trk</th></tr>';
+      const head = `<tr class="thead"><td colspan="2"><i style="background:${COLORS[S.statsTeam].fill}"></i>${esc(S.statsTeam.toUpperCase())}</td><td colspan="4" class="tot">mph · per tracked minute</td></tr>`;
+      $('statsBody').innerHTML = head + (rows.length ? rows.map((r) => `<tr><td>${esc(r.j)}</td><td>${r.top ? (r.top * MPH).toFixed(1) : '–'}</td><td>${r.acc ? '+' + (r.acc * MPH).toFixed(1) : '–'}</td>` +
+        `<td>${(r.bursts / Math.max(r.min / 10, 1e-9)).toFixed(1)}</td><td>${Math.round(r.dist / Math.max(r.min, 1e-9))}</td><td>${r.min.toFixed(1)}</td></tr>`).join('')
+        : '<tr><td colspan="6" class="mvempty">Movement stats fill in after the first full minute of play.</td></tr>');
+      $('statsThrough').textContent = curB > 0 || S.period > PERIODS[0] ? `through ${pName(S.period)} minute ${curB}` : 'first minute in progress';
+    }
+
+    // ---------- live win probability (up to now) ----------
+    function renderWinProb(nPast, clock) {
+      if (!REPORT || !REPORT.winProb) return;
+      $('wpCard').hidden = false;
+      const WP = REPORT.winProb.wp, L = (p) => META.periods[p].len || 1200;
+      const total = PERIODS.reduce((a, p) => a + L(p), 0);
+      const tAt = (p, c) => PERIODS.filter((q) => q < p).reduce((a, q) => a + L(q), 0) + (L(p) - c);
+      let i = L(S.period) - clock;
+      // an event at this very second that hasn't happened yet in the replay: use the second before
+      if (events.some((e, idx) => idx >= nPast && e.p === S.period && e.c === clock && (e.ev === 'Goal' || e.ev === 'Penalty Taken'))) i = Math.max(0, i - 1);
+      const now = WP[S.period][Math.min(i, WP[S.period].length - 1)];
+      const W = 300, H = 74, Y = (v) => 4 + (1 - v) * (H - 8), X = (s) => (s / total) * W;
+      const pts = [];
+      for (const p of PERIODS) {
+        if (p > S.period) break;
+        const arr = WP[p], last = p === S.period ? i : arr.length - 1;
+        for (let k = 0; k <= last; k += (k + 3 <= last ? 3 : 1)) pts.push(`${X(tAt(p, L(p) - k)).toFixed(1)},${Y(arr[k]).toFixed(1)}`);
+      }
+      let svgs = `<line x1="0" y1="${Y(0.5)}" x2="${W}" y2="${Y(0.5)}" stroke="#26344f" stroke-dasharray="2 3" vector-effect="non-scaling-stroke"/>`;
+      let a = 0;
+      for (const p of PERIODS) { if (a) svgs += `<line x1="${X(a)}" y1="2" x2="${X(a)}" y2="${H - 2}" stroke="#26344f" stroke-dasharray="2 3" vector-effect="non-scaling-stroke"/>`; a += L(p); }
+      if (pts.length > 1) svgs += `<path d="M${pts.join('L')}" fill="none" stroke="#e6ecf7" stroke-width="1.6" vector-effect="non-scaling-stroke"/>`;
+      $('wpMini').innerHTML = svgs;
+      const fav = now >= 0.5 ? HOME : AWAY, pct = Math.round(Math.max(now, 1 - now) * 100);
+      $('wpNowTxt').innerHTML = `<b style="color:${COLORS[fav].fill}">${esc(fav)} ${pct}%</b> · <a href="methods.html#win-probability">how</a>`;
+    }
+
     function renderMomentum(clock, nPast) {
       const W = 300, H = 92, mid = 46, maxH = 38, gap = 1.5;
       const n = MOM.bins.length;
@@ -602,6 +662,9 @@
       renderMomentum(clock, nPast);
       renderPowerPlay(nPast, clock);
 
+      renderWinProb(nPast, clock);
+      if (S.view === 'move' && REPORT) { renderMovement(clock); } else {
+      $('statsHead').innerHTML = BOX_HEAD;
       const st = computeStats(nPast, S.period, clock, pc);
       const team = S.statsTeam;
       const rows = Object.values(st).filter((r) => r.team === team && (r.toi > 0 || r.j === 'Go' || r.sog || r.g || r.a || r.pen));
@@ -616,6 +679,7 @@
             `<td class="xg">${r.xg ? r.xg.toFixed(2) : '0.00'}</td><td${r.g ? ' class="hl"' : ''}>${r.g}</td><td>${r.a}</td><td>${r.pen}</td></tr>`;
       }
       $('statsBody').innerHTML = html;
+      }
 
       // newest first: past events plus a recap line for each power play that has ended
       const startI = Math.max(0, nPast - 80);
@@ -745,6 +809,38 @@
       $('tablebox').scrollTop = 0;
     }));
 
+    document.querySelectorAll('.vtab').forEach((b) => b.addEventListener('click', () => {
+      S.view = b.dataset.view;
+      document.querySelectorAll('.vtab').forEach((t) => { const on = t === b; t.classList.toggle('on', on); t.setAttribute('aria-selected', on); });
+      $('tablebox').scrollTop = 0;
+      S.key = '';
+    }));
+    if (!REPORT) $('viewTabs').hidden = true;
+    $('reportLink').href = `report.html?g=${encodeURIComponent(GAME_ID)}`;
+
+    // links to a moment: game.html?g=<id>#p2-754 opens period 2 at 12:34
+    const toast = (msg) => { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 2600); };
+    $('momentBtn').addEventListener('click', () => {
+      const D = S.data[S.period]; if (!D) return;
+      const c = D.clock[Math.min(Math.floor(S.pos), D.n - 1)];
+      const url = `${location.href.split('#')[0]}#p${S.period}-${c}`;
+      (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(url) : Promise.reject())
+        .then(() => toast(`Link copied: ${pName(S.period)} ${fmt(c)}`), () => toast(url));
+    });
+    const parseMoment = () => {
+      const m = /^#p(\d)-(\d+)$/.exec(location.hash);
+      return m && PERIODS.includes(+m[1]) ? { p: +m[1], c: +m[2] } : null;
+    };
+    const seekMoment = async (mo) => {
+      if (!mo) return;
+      if (S.period !== mo.p) await goPeriod(mo.p);
+      const D = S.data[mo.p];
+      const k = D.clock.findIndex((v) => v <= mo.c);
+      S.pos = Math.max(0, k < 0 ? D.n - 1 : k);
+      S.key = '';
+    };
+    window.addEventListener('hashchange', () => seekMoment(parseMoment()));
+
     const scrub = $('scrub');
     const seek = (ev) => {
       const D = S.data[S.period];
@@ -771,9 +867,12 @@
     // ---------- boot ----------
     drawRink();
     markButtons();
-    goPeriod(PERIODS[0]).then(() => requestAnimationFrame(tick)).catch((err) => { $('loading').textContent = err.message; });
+    const firstMoment = parseMoment();
+    goPeriod(firstMoment ? firstMoment.p : PERIODS[0])
+      .then(() => seekMoment(firstMoment))
+      .then(() => requestAnimationFrame(tick)).catch((err) => { $('loading').textContent = err.message; });
 
     // test hook (used by the headless check; harmless for viewers)
-    window.RINKSENSE = { state: S, goPeriod, setPlaying, meta: META };
+    window.RINKSENSE = { state: S, goPeriod, setPlaying, meta: META, report: REPORT };
   }
 })();

@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Methods · RINKSENSE</title>
+<meta name="description" content="How every RINKSENSE stat and model is built, how accurate it is, and what it can't see.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="report.css">
+</head>
+<body>
+<nav class="sitenav">
+  <div class="navin">
+    <a class="brand" href="index.html">RINKSENSE</a>
+    <div class="sports">
+      <a class="sport on" href="index.html">NHL</a>
+      <span class="sport soon">MLB<em>Soon</em></span>
+      <span class="sport soon">NBA<em>Soon</em></span>
+      <span class="sport soon">NFL<em>Soon</em></span>
+    </div>
+  </div>
+</nav>
+
+<main class="wrap methods">
+  <a class="back" href="index.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>All NHL games</a>
+  <h1>How it works</h1>
+  <p class="lede">Every number on RINKSENSE comes from the event log and broadcast player-and-puck tracking. This page explains how each one is built, how accurate it is, and what it can't see.</p>
+  <ul class="mtoc">
+    <li><a href="#data">The data</a></li>
+    <li><a href="#tracking">Cleaning the tracking</a></li>
+    <li><a href="#xg">Expected goals</a></li>
+    <li><a href="#win-probability">Win probability</a></li>
+    <li><a href="#possession">Possession</a></li>
+    <li><a href="#power-plays">Power plays</a></li>
+    <li><a href="#movement">Skating and movement</a></li>
+    <li><a href="#shape">Team shape</a></li>
+    <li><a href="#passes">Pass networks</a></li>
+    <li><a href="#limits">Limits</a></li>
+  </ul>
+
+  <section class="card msec" id="data">
+    <span class="tag">Source</span>
+    <h2>The data</h2>
+    <p>Ten full games of Stathletes' public hockey dataset. Each game has an event log (shots, passes, recoveries, zone entries, faceoffs, penalties, with the skater counts at every event), a shift chart, and 30-frames-per-second x/y positions for players and the puck, estimated from the broadcast video. Coordinates are in feet with center ice at (0, 0).</p>
+    <div class="mstats" id="dataStats"></div>
+  </section>
+
+  <section class="card msec" id="tracking">
+    <span class="tag">Cleaning</span>
+    <h2>Cleaning the tracking</h2>
+    <ul>
+      <li><b>Camera cuts.</b> When the broadcast jumps ahead (stoppages, replays), the frame sequence skips. Every cut is marked, and nothing is ever smoothed or interpolated across one.</li>
+      <li><b>Game clock.</b> Stray clock readings (a "20:00" mid-period, "0:00" before an OT faceoff) are replaced using a 5-second rolling median, and the clock is forced to only count down.</li>
+      <li><b>Puck.</b> Points far from their neighbors are treated as misreads, gaps up to 1 second are filled inside the same camera shot, and the path is lightly smoothed.</li>
+      <li><b>Players off camera.</b> The replay keeps every player the shift chart says is on the ice, drawing untracked ones faded at their last or next known spot. These estimated positions never feed any stat.</li>
+    </ul>
+  </section>
+
+  <section class="card msec" id="xg">
+    <span class="tag">Model</span>
+    <h2>Expected goals (xG)</h2>
+    <p>The chance an unblocked shot becomes a goal, from a ridge-regularized logistic regression trained on every unblocked shot in the dataset. Inputs: distance and angle to the net (each team's direction comes from where it shot that period), rebound (a same-team attempt in the previous 3 seconds), one-timer, traffic, deflection, and power play.</p>
+    <div class="mstats" id="xgStats"></div>
+    <p>Accuracy is measured leave-one-game-out: each game is scored by a model that never saw it. A team's xG is the sum over its unblocked shots; blocked shots get no xG.</p>
+  </section>
+
+  <section class="card msec" id="win-probability">
+    <span class="tag">Model</span>
+    <h2>Win probability</h2>
+    <p>Ten games are far too few to train a win model on outcomes, so RINKSENSE uses a transparent scoring model instead.</p>
+    <ul>
+      <li>Each team's remaining goals follow a Poisson process. Its scoring rate starts at the league average and moves toward its own xG pace as the game goes, with the league average counting as one period (20 minutes) of evidence.</li>
+      <li>During a power play, the expected goals for its remaining time are scaled by the power-play and shorthanded multipliers measured across all ten games.</li>
+      <li>A tie after regulation goes to a 5-minute sudden-death overtime using the same rates, then a 50/50 shootout.</li>
+    </ul>
+    <div class="mstats" id="wpStats"></div>
+    <p><b>Turning points</b> are the three moments (goals or penalties) where one team's win probability moved the most in a single second.</p>
+    <p class="limit">Early in a game the model leans on xG, so a team that is out-chancing its opponent can be favored at 0–0. Accuracy (Brier score: lower is better, a coin flip scores 0.25) is measured on these same ten games, so treat it as a sanity check rather than proof.</p>
+  </section>
+
+  <section class="card msec" id="possession">
+    <span class="tag">Tracking</span>
+    <h2>Possession and time with puck</h2>
+    <p>In each tracked frame, the nearest skater (goalies excluded) within 6 feet of the puck has it. Summed per player that's time with puck; summed per team it's possession. Frames where nobody is within 6 feet, or the puck isn't tracked, count for nobody.</p>
+  </section>
+
+  <section class="card msec" id="power-plays">
+    <span class="tag">Event log</span>
+    <h2>Power plays</h2>
+    <p>Each penalty opens a power-play window for the other team. It ends at the 2:00 expiry, at a power-play goal, or when the skater counts go back to even (offsetting minors). Coincidental minors, delayed-penalty extra attackers and late pulled goalies are never counted. The replay's countdown always runs to the normal expiry so it never hints at an early goal. The data doesn't mark double minors or majors, so every power play is treated as 2:00.</p>
+  </section>
+
+  <section class="card msec" id="movement">
+    <span class="tag">Tracking</span>
+    <h2>Skating and movement</h2>
+    <p>Broadcast tracking jitters, and the tracker sometimes swaps two players for a frame, which would invent impossible sprints. So each player's track is split wherever they would have moved more than 3 feet in 1/30 of a second (90 ft/s), positions are smoothed over half a second, and pieces shorter than 1 second are dropped.</p>
+    <ul>
+      <li><b>Top speed:</b> the 98th percentile of a player's speed within each minute of play, maximum across the game, so one bad frame can't set a record.</li>
+      <li><b>Burst acceleration:</b> the same, for speed gained over 1 second.</li>
+      <li><b>Bursts:</b> going from under 10 ft/s to over 20 ft/s within 2 seconds.</li>
+      <li><b>Speed zones:</b> standing (under 3 ft/s), cruising (3 to 14), striding (14 to 22), sprinting (22 and up).</li>
+      <li><b>Feet per minute:</b> distance per minute the player was tracked, split by whether their team or the opponent had the puck.</li>
+      <li><b>Shift-start speed:</b> average speed in the first 10 seconds of each shift from the shift chart. A downward trend across the game is a fatigue signal.</li>
+    </ul>
+    <p>The replay's Movement tab adds up whole minutes of play up to the current moment, so it never shows numbers from later in the game.</p>
+  </section>
+
+  <section class="card msec" id="shape">
+    <span class="tag">Tracking</span>
+    <h2>Team shape</h2>
+    <ul>
+      <li><b>Spacing:</b> average distance between tracked teammates, in frames with at least three of them on camera.</li>
+      <li><b>Offensive-zone time:</b> tracked time the team has the puck past the blue line in its attacking zone.</li>
+      <li><b>Reaction burst:</b> after a team loses the puck, the best 1-second speed gain by its tracked skaters in the next 2 seconds, averaged over turnovers.</li>
+    </ul>
+  </section>
+
+  <section class="card msec" id="passes">
+    <span class="tag">Event log</span>
+    <h2>Pass networks</h2>
+    <p>Built from completed passes (a "Play" event with a receiver). Each player sits at the average location of the passes they made or received, mirrored so the team always attacks left to right. Line width is the number of passes between two players.</p>
+  </section>
+
+  <section class="card msec" id="limits">
+    <span class="tag">Honesty</span>
+    <h2>Limits</h2>
+    <ul>
+      <li><b>Camera coverage.</b> Tracking only exists while a player is in the broadcast shot, so movement stats are rates per tracked minute, and totals undercount.</li>
+      <li><b>Partial periods.</b> Two third periods only have tracking for their last few minutes. Events before that still count; tracking-based stats for those stretches are missing.</li>
+      <li><b>Small sample.</b> Ten games. The xG model is validated on games it never saw; win probability is checked on the same games it describes.</li>
+      <li><b>Estimates.</b> Assists (A*) are estimated from the last teammates to touch the puck, since the event log doesn't record them.</li>
+    </ul>
+  </section>
+
+  <footer class="sitefoot">
+    <span>Tracking data courtesy of <a href="https://github.com/bigdatacup/Big-Data-Cup-2026" target="_blank" rel="noopener">Stathletes</a> (public, non-commercial dataset).</span>
+    <span>Built by Joseph Mossey · <a href="https://github.com/JosephMossey/rinksense" target="_blank" rel="noopener">Source on GitHub</a></span>
+  </footer>
+</main>
+
+<script src="data/games.js"></script>
+<script src="data/xg_model.js"></script>
+<script src="data/wp_model.js"></script>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const stat = (v, l, s) => `<div class="mstat"><div class="gl">${l}</div><div class="kv">${v}</div>${s ? `<small>${s}</small>` : ''}</div>`;
+  const G = window.RS_GAMES || [], X = window.RS_XG, W = window.RS_WP;
+  if (G.length) {
+    const goals = G.reduce((n, g) => n + g.goals.length, 0);
+    $('dataStats').innerHTML = stat(G.length, 'Games') + stat(goals, 'Goals') + stat(`${(G.reduce((n, g) => n + g.frames, 0) / 1e6).toFixed(2)}M`, 'Tracked frames') + stat(G.reduce((n, g) => n + g.events, 0).toLocaleString(), 'Events');
+    const b = G.filter((g) => g.wpBrier != null);
+    if (W) $('wpStats').innerHTML = stat((W.rate * 3600).toFixed(2), 'League scoring rate', 'goals per team per 60 min') +
+      stat(`${W.pp_mult.toFixed(2)}×`, 'Power-play rate', `${W.pp_goals} PP goals`) + stat(`${W.sh_mult.toFixed(2)}×`, 'Shorthanded rate', `${W.sh_goals} SH goals`) +
+      (b.length ? stat((b.reduce((s, g) => s + g.wpBrier, 0) / b.length).toFixed(3), 'Brier score', `${b.length} games · coin flip 0.250`) : '');
+  }
+  if (X) $('xgStats').innerHTML = stat(X.attempts, 'Unblocked shots') + stat(X.goals, 'Goals') + stat(X.cv.auc.toFixed(2), 'AUC', 'on games it never saw') +
+    stat(`${Math.round((1 - X.cv.logloss / X.cv.baseline_logloss) * 100)}%`, 'Better than baseline', 'log loss vs flat shooting %') + stat(`${X.cv.xg_total} / ${X.goals}`, 'Predicted / actual goals');
+})();
+</script>
+</body>
+</html>

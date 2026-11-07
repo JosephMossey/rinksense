@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Game Report · RINKSENSE</title>
+<meta name="description" content="Full-game report: win probability and turning points, skating and movement, team shape, pass networks and a share card.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="report.css">
+</head>
+<body>
+<nav class="sitenav">
+  <div class="navin">
+    <a class="brand" href="index.html">RINKSENSE</a>
+    <div class="sports">
+      <a class="sport on" href="index.html">NHL</a>
+      <span class="sport soon">MLB<em>Soon</em></span>
+      <span class="sport soon">NBA<em>Soon</em></span>
+      <span class="sport soon">NFL<em>Soon</em></span>
+    </div>
+  </div>
+</nav>
+
+<div class="wrap report">
+  <header class="ghead">
+    <div class="crumbs">
+      <a class="back" href="index.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>All NHL games</a>
+      <a class="back" id="replayLink" href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="play" d="M8 5v14l11-7z"/></svg>Watch the replay</a>
+    </div>
+    <div class="rtop">
+      <div>
+        <div class="glive"><span id="rStatus">Final</span><span class="sep">·</span><span id="rDate"></span></div>
+        <div class="gline">
+          <span class="tside"><i class="tdot a"></i><span id="rAway">Away</span></span>
+          <span class="sc" id="rScoreA">0</span><span class="dash">–</span><span class="sc" id="rScoreH">0</span>
+          <span class="tside"><span id="rHome">Home</span><i class="tdot d"></i></span>
+        </div>
+        <h1 class="rheadline" id="rHeadline">Game report</h1>
+      </div>
+      <p class="spoiler">Full-game report. It includes the final result; the replay never does.</p>
+    </div>
+  </header>
+
+  <section class="card rsec" id="secWp">
+    <div class="chead"><span class="ctitle">Win probability</span><span class="csub" id="wpNow"></span></div>
+    <div class="wpwrap">
+      <svg id="wpChart" viewBox="0 0 900 240" role="img" aria-label="Win probability over the game"></svg>
+      <div class="wptip" id="wpTip"></div>
+    </div>
+    <div class="wplegend"><span><i class="dot d"></i><b id="wpHomeName">Home</b> wins (top)</span><span><i class="dot a"></i><b id="wpAwayName">Away</b> wins (bottom)</span><span><i class="swatch pp"></i>Power play</span><span class="mlink"><a href="methods.html#win-probability">How it works</a></span></div>
+    <div class="chead sub"><span class="ctitle">Turning points</span><span class="csub">The three biggest swings</span></div>
+    <ol class="turning" id="turning"></ol>
+  </section>
+
+  <section class="card rsec">
+    <div class="chead"><span class="ctitle">Team comparison</span><span class="csub">Away · Home</span></div>
+    <div class="cmp" id="compare"></div>
+  </section>
+
+  <section class="card rsec" id="secMove">
+    <div class="chead"><span class="ctitle">Skating and movement</span><span class="csub">Per tracked minute · click a player</span></div>
+    <div class="mvtools">
+      <div class="segmented" role="group" aria-label="Team" id="mvTeam"></div>
+      <span class="mvnote">Players are measured only while the broadcast camera sees them. Minimum 2 tracked minutes.</span>
+    </div>
+    <div class="mvgrid">
+      <div class="tablescroll">
+        <table class="mvtable" id="mvTable"></table>
+      </div>
+      <aside class="profile" id="profile" aria-live="polite"></aside>
+    </div>
+  </section>
+
+  <section class="card rsec" id="secPass">
+    <div class="chead"><span class="ctitle">Pass network</span><span class="csub">Completed passes · attacking left to right</span></div>
+    <div class="mvtools">
+      <div class="segmented" role="group" aria-label="Team" id="pnTeam"></div>
+      <div class="segmented" role="group" aria-label="Period" id="pnPer"></div>
+    </div>
+    <div class="pngrid">
+      <svg id="pnChart" viewBox="0 0 840 380" role="img" aria-label="Pass network"></svg>
+      <div class="pnside"><div class="ctitle">Top connections</div><ol id="pnTop"></ol><p class="pnnote">Dot size = passes made or received. Line width = passes between the two players. Positions are where those passes happened, on average.</p></div>
+    </div>
+  </section>
+
+  <section class="card rsec" id="secShare">
+    <div class="chead"><span class="ctitle">Share card</span><span class="csub">1200 × 630, sized for X, LinkedIn and texts</span></div>
+    <div class="sharegrid">
+      <canvas id="shareCanvas" width="1200" height="630" aria-label="Share card image"></canvas>
+      <div class="shareside">
+        <p class="sharecopy" id="shareText"></p>
+        <div class="sharebtns">
+          <button class="btn primary" id="dlCard" type="button">Download image</button>
+          <button class="btn ghost" id="copyLink" type="button">Copy report link</button>
+        </div>
+        <p class="sharestatus" id="shareStatus" role="status"></p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="sitefoot">
+    <span>Tracking data courtesy of <a href="https://github.com/bigdatacup/Big-Data-Cup-2026" target="_blank" rel="noopener">Stathletes</a>. <a href="methods.html">How every stat is built</a></span>
+    <span>Built by Joseph Mossey · <a href="https://github.com/JosephMossey/rinksense" target="_blank" rel="noopener">Source on GitHub</a></span>
+  </footer>
+</div>
+
+<script src="report-page.js"></script>
+</body>
+</html>

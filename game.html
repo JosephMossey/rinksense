@@ -35,7 +35,7 @@
           <span class="tside"><span id="homeName">Home</span><i class="tdot d"></i></span>
         </div>
         <div class="ppbadge" id="ppBadge" aria-live="polite"><span class="ppw">PP</span><span class="ppteam" id="ppTeam"></span><span class="ppstr" id="ppStr"></span><span class="ppt" id="ppTime"></span><span class="ppbar"><i id="ppBar"></i></span></div>
-        <div class="gmeta"><h1 id="matchup">Game replay</h1><span id="gameinfo"></span></div>
+        <div class="gmeta"><h1 id="matchup">Game replay</h1><span id="gameinfo"></span><a class="replink" id="reportLink" href="#">Game report<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></a></div>
       </div>
       <div class="gstats">
         <div class="gstat"><div class="gl" title="Expected goals: the summed scoring chance of every unblocked shot, from RINKSENSE's shot model">Expected goals</div><div class="gv"><span id="xgA">0.00</span><span class="dash">–</span><span id="xgH">0.00</span></div></div>
@@ -73,6 +73,7 @@
           <div class="covnote" id="covNote"></div>
           <div class="ppnote" id="ppNote"></div>
           <div class="camnote" id="camNote" title="Tracking comes from the broadcast camera, so players outside the shot aren't tracked. Faded players are estimated positions.">Limited camera view</div>
+          <div class="toast" id="toast" role="status"></div>
           <div class="loading" id="loading">Loading tracking data…</div>
         </div>
         <div class="legend">
@@ -94,6 +95,7 @@
               <div class="knob" id="knob"></div>
             </div>
             <div class="left-time" id="leftTime">20:00 left</div>
+            <button class="linkbtn" id="momentBtn" type="button" title="Copy a link that opens the replay at this moment" aria-label="Copy link to this moment"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.2 1.2M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.2-1.2"/></svg></button>
           </div>
           <div class="prow2">
             <div class="seg" id="periodBtns"><span class="slabel">Period</span></div>
@@ -106,6 +108,11 @@
     </section>
 
     <aside class="right">
+      <div class="card wpmini" id="wpCard" hidden>
+        <div class="chead"><span class="ctitle">Win probability</span><span class="csub" id="wpNowTxt"></span></div>
+        <svg id="wpMini" viewBox="0 0 300 74" preserveAspectRatio="none" aria-label="Win probability so far"></svg>
+      </div>
+
       <div class="card momentum">
         <div class="chead"><span class="ctitle">Momentum</span><span class="csub">Shot attempts per 2 min</span></div>
         <svg id="momentum" viewBox="0 0 300 92" preserveAspectRatio="none" aria-label="Shot attempts over the game"></svg>
@@ -114,10 +121,11 @@
 
       <div class="card stats">
         <div class="chead"><span class="ctitle">Player stats</span><span class="csub" id="statsThrough"></span></div>
+        <div class="viewtabs" role="tablist" id="viewTabs"><button class="vtab on" role="tab" aria-selected="true" data-view="box">Box score</button><button class="vtab" role="tab" aria-selected="false" data-view="move">Movement</button></div>
         <div class="tabs" role="tablist" id="statsTabs"></div>
         <div class="tablebox" id="tablebox">
           <table>
-            <thead><tr><th>#</th><th>TOI</th><th title="Time with puck">TWP</th><th>SOG</th><th title="Expected goals">xG</th><th>G</th><th>A*</th><th>PEN</th></tr></thead>
+            <thead id="statsHead"><tr><th>#</th><th>TOI</th><th title="Time with puck">TWP</th><th>SOG</th><th title="Expected goals">xG</th><th>G</th><th>A*</th><th>PEN</th></tr></thead>
             <tbody id="statsBody"></tbody>
           </table>
         </div>
