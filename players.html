@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Players · RINKSENSE</title>
+<meta name="description" content="Every skater across all ten tracked games: goals, expected goals, shots, time with puck, top speed and skating distance.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="players.css">
+</head>
+<body>
+<nav class="sitenav">
+  <div class="navin">
+    <a class="brand" href="index.html">RINKSENSE</a>
+    <div class="sports">
+      <a class="sport" href="index.html">NHL</a>
+      <a class="sport on" href="players.html" aria-current="page">Players</a>
+      <span class="sport soon">MLB<em>Soon</em></span>
+      <span class="sport soon">NBA<em>Soon</em></span>
+      <span class="sport soon">NFL<em>Soon</em></span>
+    </div>
+  </div>
+</nav>
+
+<main class="wrap plist">
+  <header class="phero">
+    <div class="eyebrow">NHL · Players</div>
+    <h1 class="ptitle1">Every skater, every game</h1>
+    <p class="lede" id="plLede">Season numbers for each skater across the ten tracked games. Players are identified by team and jersey number only. Click a player for their full page.</p>
+  </header>
+
+  <section class="card">
+    <div class="pltools">
+      <label class="search">
+        <span class="sr">Search players</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+        <input id="plSearch" type="search" placeholder="Search #63 or Team A" autocomplete="off">
+      </label>
+      <label class="selectwrap">
+        <span class="sr">Filter by team</span>
+        <select id="plTeam"><option value="">All teams</option></select>
+      </label>
+      <div class="segmented" role="group" aria-label="Minimum games played" id="plGp">
+        <button data-v="1" class="on">Any GP</button>
+        <button data-v="2">2+ GP</button>
+        <button data-v="3">3+ GP</button>
+      </div>
+      <span class="plcount" id="plCount" role="status"></span>
+    </div>
+    <div class="tablescroll pltable-wrap">
+      <table class="pltable" id="plTable"></table>
+    </div>
+    <p class="foot">TWP = time with puck (tracked). Top speed and ft / min need 2+ tracked minutes in a game. xG = expected goals. <a href="methods.html#players">How these are built</a></p>
+  </section>
+
+  <footer class="sitefoot">
+    <span>Tracking data courtesy of <a href="https://github.com/bigdatacup/Big-Data-Cup-2026" target="_blank" rel="noopener">Stathletes</a>. <a href="methods.html">How every stat is built</a></span>
+    <span>Built by Joseph Mossey · <a href="https://github.com/JosephMossey/rinksense" target="_blank" rel="noopener">Source on GitHub</a></span>
+  </footer>
+</main>
+
+<script src="data/players.js"></script>
+<script src="players-common.js"></script>
+<script src="players-page.js"></script>
+</body>
+</html>

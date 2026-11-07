@@ -174,6 +174,7 @@
         withoutm: v.without[0] > R.fps * 20 ? v.without[1] / (v.without[0] / R.fps / 60) : null,
       };
     }).filter((r) => r.min >= 2 && r.team !== 'undefined');
+    const skaters = new Set(M.shifts.filter((s) => s[1] !== 'Go').map((s) => `${s[0]}|${s[1]}`));   // goalies have no player page
     const MV = { team: 'both', sort: 'top', dir: -1, sel: null };
     const cols = [
       ['j', '#'], ['min', 'Tracked'], ['top', 'Top speed'], ['acc', 'Burst accel'], ['b10', 'Bursts / 10 min'],
@@ -242,7 +243,7 @@
       let acc2 = 0; let perLines = '';
       for (const p of PER) { if (acc2) perLines += `<line x1="${ex(acc2)}" x2="${ex(acc2)}" y1="4" y2="${EH - 6}" stroke="${CLR.line}" stroke-dasharray="2 3"/>`; acc2 += LEN(p); }
       $('profile').innerHTML = `
-        <div class="phead"><span class="pname"><i class="dot" style="background:${col(r.team)}"></i>#${esc(r.j)} · ${esc(r.team)}</span><span class="pmin">${r.min.toFixed(1)} tracked min</span></div>
+        <div class="phead"><span class="pname"><i class="dot" style="background:${col(r.team)}"></i>#${esc(r.j)} · ${esc(r.team)}</span><span class="pmin">${r.min.toFixed(1)} tracked min${skaters.has(r.key) ? ` · <a href="player.html?p=${encodeURIComponent(r.team.toLowerCase().replace(/\s+/g, '-') + '-' + r.j)}">Player page</a>` : ''}</span></div>
         <div class="pkpis">
           <div><div class="gl">Top speed</div><div class="kv">${r.top ? r.top.toFixed(1) : '–'}<small> mph</small></div></div>
           <div><div class="gl">Burst accel</div><div class="kv">${r.acc ? '+' + r.acc.toFixed(1) : '–'}<small> mph/s</small></div></div>

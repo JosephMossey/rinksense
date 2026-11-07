@@ -330,3 +330,6 @@ td.mvempty { text-align: left; color: var(--dim); font-weight: 400; padding: 12p
 .gacts .watch { margin-left: 0; }
 .gfoot .gstat + .gstat { margin-left: 0; }
 .sitefoot .mlinkfoot { color: var(--muted); }
+
+/* nav: Players link next to NHL; on phones keep only the first "soon" sport */
+@media (max-width: 480px) { .sport.soon + .sport.soon { display: none; } }

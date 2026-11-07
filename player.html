@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Player · RINKSENSE</title>
+<meta name="description" content="One skater across every tracked game: season line, percentiles, shot map, skating by game, passing chemistry and game log.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="players.css">
+</head>
+<body>
+<nav class="sitenav">
+  <div class="navin">
+    <a class="brand" href="index.html">RINKSENSE</a>
+    <div class="sports">
+      <a class="sport" href="index.html">NHL</a>
+      <a class="sport on" href="players.html">Players</a>
+      <span class="sport soon">MLB<em>Soon</em></span>
+      <span class="sport soon">NBA<em>Soon</em></span>
+      <span class="sport soon">NFL<em>Soon</em></span>
+    </div>
+  </div>
+</nav>
+
+<main class="wrap pdetail">
+  <header class="ghead">
+    <a class="back" href="players.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>All players</a>
+    <div class="pdtop">
+      <div>
+        <div class="glive" id="pdMeta"></div>
+        <h1 class="pdname" id="pdName">Player</h1>
+      </div>
+      <div class="gstats pdline" id="pdLine"></div>
+    </div>
+  </header>
+
+  <div class="pdgrid" id="pdBody">
+    <section class="card rsec" id="secCompare">
+      <div class="chead"><span class="ctitle">How they compare</span><span class="csub" id="cmpSub"></span></div>
+      <p class="callout" id="callout"></p>
+      <div class="pctl" id="pctl"></div>
+      <p class="foot" id="pctNote"></p>
+    </section>
+
+    <section class="card rsec" id="secShots">
+      <div class="chead"><span class="ctitle">Shot map</span><span class="csub" id="shotSub"></span></div>
+      <div class="shotwrap"><svg id="shotSvg" viewBox="0 0 440 380" role="img" aria-label="Map of this player's shots"></svg></div>
+      <div class="maplegend shotlegend"><span><i class="mdot"></i>Goal</span><span><i class="sdot on"></i>On net</span><span><i class="sdot miss"></i>Missed</span><span><i class="sdot blk"></i>Blocked</span><span>Size = xG · click a shot to watch it</span></div>
+    </section>
+
+    <section class="card rsec" id="secSkate">
+      <div class="chead"><span class="ctitle">Skating by game</span><span class="csub" id="skSub"></span></div>
+      <div class="mvtools"><div class="segmented" role="group" aria-label="Skating stat" id="skPick"></div></div>
+      <div class="skwrap"><svg id="skSvg" viewBox="0 0 520 210" role="img" aria-label="Skating stat by game"></svg></div>
+      <p class="foot" id="skNote"></p>
+    </section>
+
+    <section class="card rsec" id="secMates">
+      <div class="chead"><span class="ctitle">Chemistry</span><span class="csub">Completed passes, all games</span></div>
+      <ol class="mates" id="mates"></ol>
+      <p class="foot">Passes made to or received from each teammate, counted from the event log.</p>
+    </section>
+
+    <section class="card rsec wide" id="secLog">
+      <div class="chead"><span class="ctitle">Game log</span><span class="csub">Click a game for its report</span></div>
+      <div class="tablescroll"><table class="pltable logtable" id="logTable"></table></div>
+      <p class="foot">A* = estimated assists (the event log has no assist field). TOI from the shift chart. Top speed needs 2+ tracked minutes in that game.</p>
+    </section>
+  </div>
+
+  <footer class="sitefoot">
+    <span>Tracking data courtesy of <a href="https://github.com/bigdatacup/Big-Data-Cup-2026" target="_blank" rel="noopener">Stathletes</a>. <a href="methods.html#players">How player stats are built</a></span>
+    <span>Built by Joseph Mossey · <a href="https://github.com/JosephMossey/rinksense" target="_blank" rel="noopener">Source on GitHub</a></span>
+  </footer>
+</main>
+
+<script src="data/players.js"></script>
+<script src="players-common.js"></script>
+<script src="player-page.js"></script>
+</body>
+</html>

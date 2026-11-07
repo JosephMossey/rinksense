@@ -17,6 +17,7 @@
     <a class="brand" href="index.html">RINKSENSE</a>
     <div class="sports">
       <a class="sport on" href="index.html">NHL</a>
+      <a class="sport" href="players.html">Players</a>
       <span class="sport soon">MLB<em>Soon</em></span>
       <span class="sport soon">NBA<em>Soon</em></span>
       <span class="sport soon">NFL<em>Soon</em></span>
@@ -38,6 +39,7 @@
     <li><a href="#movement">Skating and movement</a></li>
     <li><a href="#shape">Team shape</a></li>
     <li><a href="#passes">Pass networks</a></li>
+    <li><a href="#players">Player pages</a></li>
     <li><a href="#limits">Limits</a></li>
   </ul>
 
@@ -124,6 +126,20 @@
     <p>Built from completed passes (a "Play" event with a receiver). Each player sits at the average location of the passes they made or received, mirrored so the team always attacks left to right. Line width is the number of passes between two players.</p>
   </section>
 
+  <section class="card msec" id="players">
+    <span class="tag">Players</span>
+    <h2>Player pages</h2>
+    <p>Each skater's numbers are added up across every game they played. A player is a team plus a jersey number (the data is anonymized), and the skater list comes from the shift charts, so goalies are left out.</p>
+    <ul>
+      <li><b>Counting stats:</b> goals, shots on goal and xG come from the event log; estimated assists (A*) use the same rule as the replay. Time on ice comes from the shift chart; time with puck from tracking.</li>
+      <li><b>Rates:</b> xG per 60 is xG divided by time on ice, times 60, so it covers the whole game. The skating rates (feet per minute, sprint share, time with puck as a share of tracked time) use tracked minutes only, because a player off camera can't be measured. Top speed and burst acceleration are the best single-game values, counting only games with at least 2 tracked minutes.</li>
+      <li><b>Percentiles:</b> a player's percentile is the share of other qualified skaters they beat (ties count half). To qualify, a skater needs at least 10 tracked minutes across all games<span id="plQual"></span>. Players under that still get a rank against the qualified group, shown faded and labeled as rough.</li>
+      <li><b>Shot map:</b> every attempt is mirrored so the player always shoots at the right-hand net, using the direction their team attacked that period. Dot size is xG; blocked shots have no xG. Each dot links to the replay a few seconds before the shot.</li>
+      <li><b>Chemistry:</b> completed passes (a "Play" event with a receiver) made to or received from each teammate, across all games.</li>
+    </ul>
+    <p class="limit">Most skaters only appear in one or two of the ten games, so percentiles compare small samples. Treat them as a description of these games, not a scouting grade.</p>
+  </section>
+
   <section class="card msec" id="limits">
     <span class="tag">Honesty</span>
     <h2>Limits</h2>
@@ -144,6 +160,7 @@
 <script src="data/games.js"></script>
 <script src="data/xg_model.js"></script>
 <script src="data/wp_model.js"></script>
+<script src="data/players.js"></script>
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -157,6 +174,8 @@
       stat(`${W.pp_mult.toFixed(2)}×`, 'Power-play rate', `${W.pp_goals} PP goals`) + stat(`${W.sh_mult.toFixed(2)}×`, 'Shorthanded rate', `${W.sh_goals} SH goals`) +
       (b.length ? stat((b.reduce((s, g) => s + g.wpBrier, 0) / b.length).toFixed(3), 'Brier score', `${b.length} games · coin flip 0.250`) : '');
   }
+  const PL = window.RS_PLAYERS;
+  if (PL) $('plQual').textContent = ` (${PL.qualified} of ${PL.players.length} skaters do)`;
   if (X) $('xgStats').innerHTML = stat(X.attempts, 'Unblocked shots') + stat(X.goals, 'Goals') + stat(X.cv.auc.toFixed(2), 'AUC', 'on games it never saw') +
     stat(`${Math.round((1 - X.cv.logloss / X.cv.baseline_logloss) * 100)}%`, 'Better than baseline', 'log loss vs flat shooting %') + stat(`${X.cv.xg_total} / ${X.goals}`, 'Predicted / actual goals');
 })();
