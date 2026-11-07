@@ -129,6 +129,11 @@
         const op = zoneView === 'pit' && !cur ? 0.55 : 1;
         svg += `<circle cx="${cx}" cy="${cy}" r="${cur ? r + 1.5 : r}" fill="${c}" opacity="${op}" stroke="${cur ? '#ffd166' : '#0e1626'}" stroke-width="${cur ? 2.5 : 1}"><title>${esc(ptName(p.t))} ${p.v ?? ''} mph · ${esc(p.d)}</title></circle>`;
         if (n) svg += `<text x="${cx}" y="${cy + 3.5}" font-size="10" font-weight="600" fill="#0a101d" text-anchor="middle">${n}</text>`;
+        if (cur && p.md != null && ['S', 'W', 'M'].includes(p.c)) {
+          const rr = Math.min(70, r + 1.5 + p.md * (64 / 12));
+          svg += `<circle cx="${cx}" cy="${cy}" r="${rr.toFixed(1)}" fill="none" stroke="#ff8a80" stroke-width="1.4" stroke-dasharray="3 3"/>` +
+            `<text x="${cx}" y="${Math.max(12, cy - rr - 5)}" font-size="10" fill="#ff8a80" text-anchor="middle">missed by ${p.md} in</text>`;
+        }
       });
       $('zone').innerHTML = svg;
       const types = [...new Set(S.slice(0, Math.max(k + 1, 0)).filter((p) => s && p.pit === s.pit && p.t).map((p) => p.t))];
@@ -194,23 +199,124 @@
         </div>${tun}${res}`;
     }
 
-    // ---------- result banner ----------
-    let bannerT = null;
-    function banner() {
+    // ---------- live field view + result pop-ups ----------
+    const IN_PLAY = new Set(['X', 'D', 'E']);
+    const WHIFF = new Set(['S', 'W', 'M']);
+    const BASES = [[150.9, 172.8], [125.4, 147.3], [99.9, 172.8]];
+    const HOME = [125.4, 198.3];
+    const WORD = {
+      single: 'SINGLE', double: 'DOUBLE', triple: 'TRIPLE', home_run: 'HOME RUN', field_out: 'OUT!', force_out: 'OUT!',
+      grounded_into_double_play: 'DOUBLE PLAY!', double_play: 'DOUBLE PLAY!', triple_play: 'TRIPLE PLAY!',
+      sac_fly_double_play: 'DOUBLE PLAY!', fielders_choice: "FIELDER'S CHOICE", fielders_choice_out: 'OUT!',
+      field_error: 'ERROR', sac_fly: 'SAC FLY', sac_bunt: 'SAC BUNT',
+    };
+    const TRAJ = { fly_ball: 'Fly ball', popup: 'Pop up', line_drive: 'Line drive', ground_ball: 'Ground ball', bunt_grounder: 'Bunt', bunt_popup: 'Bunt pop up', bunt_line_drive: 'Bunt' };
+    const d3 = (v) => (v == null ? '–' : v.toFixed(3).replace(/^0/, ''));
+    let stage = 'zone', autoField = false, raf = 0;
+    function setStage(mode, auto) {
+      stage = mode; autoField = auto;
+      $('zone').style.display = mode === 'zone' ? '' : 'none';
+      $('fieldSvg').style.display = mode === 'field' ? '' : 'none';
+      $('zvRow').style.visibility = mode === 'zone' ? '' : 'hidden';
+      $('ptLegend').style.visibility = mode === 'zone' ? '' : 'hidden';
+      document.querySelectorAll('[data-sv]').forEach((x) => x.classList.toggle('on', x.dataset.sv === mode));
+    }
+    const runnersBefore = () => {
+      const p = S[k - 1], pa = P[S[k].a];
+      if (!p) return [0, 0, 0];
+      const pp = P[p.a];
+      return pp.inn === pa.inn && pp.top === pa.top && p.o < 3 ? p.rn : [0, 0, 0];
+    };
+    // seconds of flight to animate: ground balls are quick, high balls hang (no-drag hang time, scaled down)
+    const flight = (h) => {
+      const la = h.la ?? 0, ev = h.ev ?? 80;
+      if (la < 10) return Math.max(0.5, Math.min(1.5, ((h.d || 100) / (ev * 1.467)) * 1.2));
+      const hang = (2 * ev * 0.447 * Math.sin((la * Math.PI) / 180)) / 9.8;
+      return Math.max(0.7, Math.min(3.2, hang * 0.55));
+    };
+    function fieldSvg(rn, ball) {
+      let svg = FIELD;
+      BASES.forEach(([x, y], i) => {
+        const on = rn && rn[i];
+        svg += `<rect x="${x - 3.6}" y="${y - 3.6}" width="7.2" height="7.2" transform="rotate(45 ${x} ${y})" fill="${on ? '#ffd166' : '#0e1626'}" stroke="${on ? '#ffd166' : '#8593ad'}" stroke-width="1"/>`;
+        if (on) {
+          const nm = esc(last(name(on)));
+          if (i === 0) svg += `<text x="${x + 7}" y="${y + 3}" font-size="7.5" fill="#e6ecf7">${nm}</text>`;
+          else if (i === 1) svg += `<text x="${x}" y="${y - 7}" font-size="7.5" fill="#e6ecf7" text-anchor="middle">${nm}</text>`;
+          else svg += `<text x="${x - 7}" y="${y + 3}" font-size="7.5" fill="#e6ecf7" text-anchor="end">${nm}</text>`;
+        }
+      });
+      if (ball) {
+        const h = ball.pa.hit, L = [h.x, h.y];
+        const len = Math.hypot(L[0] - HOME[0], L[1] - HOME[1]);
+        const ground = (h.la ?? 0) < 10;
+        const lift = ground ? 0 : len * Math.min(0.8, Math.tan(((h.la ?? 0) * Math.PI) / 180) * 0.45);
+        const C = [(HOME[0] + L[0]) / 2, (HOME[1] + L[1]) / 2 - lift];
+        const t = ball.t, u = 1 - t;
+        const bx = u * u * HOME[0] + 2 * u * t * C[0] + t * t * L[0];
+        const by = u * u * HOME[1] + 2 * u * t * C[1] + t * t * L[1];
+        const hitc = ball.pa.top ? '#ff8a80' : '#2f6bff';
+        svg += `<path d="M${HOME[0]},${HOME[1]} Q${C[0].toFixed(1)},${C[1].toFixed(1)} ${L[0]},${L[1]}" fill="none" stroke="#ffd166" stroke-width="1.2" opacity=".75" pathLength="1" stroke-dasharray="${t} 1"/>`;
+        if (t >= 1) svg += `<circle cx="${L[0]}" cy="${L[1]}" r="6" fill="none" stroke="${hitc}" stroke-width="1.2" opacity=".8"/>`;
+        const r = ground ? 2.6 : 2.6 + 2.4 * Math.sin(Math.PI * t);
+        svg += `<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="${r.toFixed(2)}" fill="#fff" stroke="#ffd166" stroke-width="1.2"/>`;
+      }
+      return svg;
+    }
+    function popHTML() {
       const s = S[k];
-      const el = $('resBanner');
-      if (!s || k !== P[s.a].p1 || !playing) { el.classList.remove('show'); return; }
-      const pa = P[s.a];
-      let word = '';
-      if (pa.et === 'home_run') word = (pa.rbi === 4 ? 'GRAND SLAM' : 'HOME RUN');
-      if (k === N - 1 && !pa.top && pa.sc[1] > pa.sc[0]) word = 'WALK-OFF';
-      if (!word) { el.classList.remove('show'); return; }
-      $('resWord').textContent = word;
-      $('resWho').textContent = name(pa.bat);
-      $('resWhat').textContent = pa.hit ? `${pa.hit.ev} mph · ${pa.hit.la}° · ${pa.hit.d ?? '–'} ft` : pa.ev;
-      el.classList.add('show');
-      clearTimeout(bannerT);
-      bannerT = setTimeout(() => el.classList.remove('show'), 2600 / speed);
+      if (!s) return '';
+      const pa = P[s.a], end = k === pa.p1;
+      const kv = (l, v, u = '') => `<div><span>${l}</span><b>${v}${v !== '–' && u ? `<small>${u}</small>` : ''}</b></div>`;
+      const head = (w, sub, cls = '') => `<div class="pophead"><span class="gword ${cls}">${w}</span><span class="popsub">${sub}</span></div>`;
+      if (IN_PLAY.has(s.c)) {
+        let w = WORD[pa.et] || (pa.ev || 'In play').toUpperCase();
+        if (pa.et === 'home_run' && pa.rbi === 4) w = 'GRAND SLAM';
+        if (k === N - 1 && !pa.top && pa.sc[1] > pa.sc[0]) w = `WALK-OFF ${w.replace('!', '')}`;
+        const h = pa.hit || {};
+        const good = HITS.has(pa.et) || /WALK-OFF/.test(w);
+        return head(w, `${esc(TRAJ[h.tj] || pa.ev)} · ${esc(name(pa.bat))}`, good ? '' : 'outw') +
+          `<div class="popkv">${kv('Exit velo', h.ev ?? '–', ' mph')}${kv('Launch', h.la != null ? `${h.la}°` : '–')}${kv('Distance', h.d ?? '–', ' ft')}${kv('Bat speed', s.bs ?? '–', ' mph')}</div>` +
+          `<div class="popfoot">${h.xba != null ? `xBA ${d3(h.xba)}` : ''}${h.hr >= 0.05 ? ` · HR chance ${pct(h.hr)}` : ''}${h.ev >= 95 ? ' · <b>Hard hit</b>' : ''}${h.xba != null && !HITS.has(pa.et) && h.xba >= 0.6 ? ' · robbed: usually a hit' : ''}${h.xba != null && HITS.has(pa.et) && h.xba < 0.25 ? ' · lucky: usually an out' : ''}</div>`;
+      }
+      if (WHIFF.has(s.c)) {
+        const k3 = end && /strikeout/.test(pa.et);
+        const prev = S[k - 1];
+        const tun = s.tu && prev && prev.a === s.a && prev.t !== s.t && s.tu[0] <= 6 && s.tu[1] >= 10
+          ? `Tunneled off the ${esc(ptName(prev.t).toLowerCase())}: ${s.tu[0]} in apart at the decision point, ${s.tu[1]} in at the plate` : '';
+        return head(k3 ? 'STRIKE THREE' : 'WHIFF', `Swinging · ${esc(ptName(s.t))}, ${s.v ?? '–'} mph`) +
+          `<div class="popkv">${kv('Missed by', s.md ?? '–', ' in')}${kv('Bat speed', s.bs ?? '–', ' mph')}${kv('Swing length', s.sl ?? '–', ' ft')}${kv('xWhiff', s.xw ?? '–', '%')}</div>` +
+          `<div class="popfoot">${tun || 'Missed by = closest the bat got to the ball (Statcast bat tracking)'}</div>`;
+      }
+      if (end && s.c === 'C' && /strikeout/.test(pa.et)) return head('STRIKE THREE', `Caught looking · ${esc(ptName(s.t))}, ${s.v ?? '–'} mph · ${esc(name(pa.bat))}`);
+      if (end && pa.et === 'intent_walk') return head('INTENTIONAL WALK', esc(name(pa.bat)), 'outw');
+      if (end && pa.et === 'walk') return head('WALK', `${esc(name(pa.bat))} takes first`, 'outw');
+      if (end && pa.et === 'hit_by_pitch') return head('HIT BY PITCH', esc(name(pa.bat)), 'outw');
+      return '';
+    }
+    function showPop() { const h = popHTML(); $('playPop').innerHTML = h; $('playPop').classList.toggle('show', !!h); }
+    function animateBall(pa) {
+      const T = (flight(pa.hit) * 1000) / speed, t0 = performance.now(), before = runnersBefore();
+      $('playPop').classList.remove('show');
+      k -= 1; drawBoard(); k += 1;               // hold the scoreboard until the ball lands
+      const frame = (now) => {
+        const t = Math.min(1, (now - t0) / T);
+        $('fieldSvg').innerHTML = fieldSvg(t < 1 ? before : S[k].rn, { pa, t });
+        if (t < 1) raf = requestAnimationFrame(frame);
+        else { drawBoard(); showPop(); }
+      };
+      raf = requestAnimationFrame(frame);
+    }
+    function drawLive(anim) {
+      cancelAnimationFrame(raf);
+      const s = S[k], pa = s ? P[s.a] : null;
+      const inPlay = !!s && IN_PLAY.has(s.c);
+      if (inPlay && stage === 'zone') setStage('field', true);
+      else if (!inPlay && autoField) setStage('zone', false);
+      const hasBall = inPlay && pa.hit && pa.hit.x != null;
+      if (stage === 'field' && hasBall && anim) { animateBall(pa); return; }
+      if (stage === 'field') $('fieldSvg').innerHTML = fieldSvg(s ? s.rn : [0, 0, 0], hasBall ? { pa, t: 1 } : null);
+      showPop();
     }
 
     // ---------- win probability ----------
@@ -259,6 +365,10 @@
       <path d="M125.4,198.3 L95,168 A43,43 0 0 1 155.8,168 Z" fill="#2a2418" opacity=".85"/>
       <path d="M125.4,198.3 L150.9,172.8 L125.4,147.3 L99.9,172.8 Z" fill="#0f2419" stroke="#3a3322" stroke-width=".8"/>
       <line x1="125.4" y1="198.3" x2="32" y2="105" stroke="#3a5a4a" stroke-width=".8"/><line x1="125.4" y1="198.3" x2="218.8" y2="105" stroke="#3a5a4a" stroke-width=".8"/>`;
+    function bbText(pa) {
+      return `<b>${esc(name(pa.bat))}</b> · ${esc(pa.ev)} · ${pa.hit.ev} mph, ${pa.hit.la}°${pa.hit.d ? `, ${pa.hit.d} ft` : ''}<br>` +
+        `<span class="x">xBA ${pa.hit.xba.toFixed(3).replace(/^0/, '')}</span> · xwOBA ${pa.hit.xw.toFixed(3).replace(/^0/, '')}${pa.hit.hr >= 0.05 ? ` · HR chance ${Math.round(pa.hit.hr * 100)}%` : ''}`;
+    }
     function drawSpray() {
       const balls = P.filter((pa) => pa.hit && pa.hit.x != null && paDone(pa));
       let svg = FIELD;
@@ -266,13 +376,13 @@
         const cur = i === balls.length - 1 && pa.p1 === k;
         const c = pa.top ? '#ff8a80' : '#2f6bff';
         const hit = HITS.has(pa.et);
-        svg += `<circle cx="${pa.hit.x}" cy="${pa.hit.y}" r="${cur ? 5 : 3.4}" fill="${hit ? c : 'none'}" stroke="${cur ? '#ffd166' : c}" stroke-width="${cur ? 2 : 1.2}" opacity="${cur ? 1 : 0.85}"><title>${esc(name(pa.bat))}: ${esc(pa.ev)}, ${pa.hit.ev} mph, ${pa.hit.la}°</title></circle>`;
+        svg += `<g class="sdot" data-step="${pa.p1}" data-pa="${pa.i}" tabindex="0" role="button" aria-label="Replay ${esc(name(pa.bat))}: ${esc(pa.ev)}">` +
+          `<circle cx="${pa.hit.x}" cy="${pa.hit.y}" r="7" fill="transparent"/>` +
+          `<circle class="vis" cx="${pa.hit.x}" cy="${pa.hit.y}" r="${cur ? 5 : 3.4}" fill="${hit ? c : 'none'}" stroke="${cur ? '#ffd166' : c}" stroke-width="${cur ? 2 : 1.2}" opacity="${cur ? 1 : 0.85}"/></g>`;
       });
       $('spray').innerHTML = svg;
       const lb = balls[balls.length - 1];
-      $('bbLine').innerHTML = lb ? `<b>${esc(name(lb.bat))}</b> · ${esc(lb.ev)} · ${lb.hit.ev} mph, ${lb.hit.la}°${lb.hit.d ? `, ${lb.hit.d} ft` : ''}<br>` +
-        `<span class="x">xBA ${lb.hit.xba.toFixed(3).replace(/^0/, '')}</span> · xwOBA ${lb.hit.xw.toFixed(3).replace(/^0/, '')}${lb.hit.hr >= 0.05 ? ` · HR chance ${Math.round(lb.hit.hr * 100)}%` : ''}`
-        : '<span style="color:var(--dim)">No balls in play yet.</span>';
+      $('bbLine').innerHTML = lb ? `${bbText(lb)}<br><span style="color:var(--dim)">Hover a dot to see it, click to replay it.</span>` : '<span style="color:var(--dim)">No balls in play yet.</span>';
     }
 
     // ---------- bullpen decisions ----------
@@ -389,12 +499,13 @@
     }
 
     // ---------- render + controls ----------
-    function render() {
-      drawBoard(); drawZone(); drawMatchup(); drawPitch(); drawWP(); drawSpray(); drawDecisions(); drawBox(); drawPBP(); drawScrub(); banner();
+    function render(anim) {
+      drawBoard(); drawZone(); drawMatchup(); drawPitch(); drawWP(); drawSpray(); drawDecisions(); drawBox(); drawPBP(); drawScrub(); drawLive(anim);
     }
-    function setStep(i) {
+    function setStep(i, anim) {
+      const a = anim ?? (i === k + 1);
       k = Math.max(-1, Math.min(N - 1, i));
-      render();
+      render(a);
       if (k === N - 1) pause();
     }
     const delay = () => {
@@ -402,7 +513,8 @@
       let ms = 1300;
       if (s && k === P[s.a].p1) ms += 900;
       if (s && nx && P[nx.a].top !== P[s.a].top) ms += 1100;
-      if (s && P[s.a].et === 'home_run' && k === P[s.a].p1) ms += 1400;
+      if (s && IN_PLAY.has(s.c) && P[s.a].hit) ms += flight(P[s.a].hit) * 1000 + 1500;
+      if (s && WHIFF.has(s.c)) ms += 500;
       return ms / speed;
     };
     function tickPlay() { if (!playing) return; setStep(k + 1); if (playing) timer = setTimeout(tickPlay, delay()); }
@@ -435,6 +547,16 @@
       speed = +b.dataset.speed;
       document.querySelectorAll('[data-speed]').forEach((x) => x.classList.toggle('on', x === b));
     }));
+    document.querySelectorAll('[data-sv]').forEach((b) => b.addEventListener('click', () => { setStage(b.dataset.sv, false); drawLive(false); }));
+    $('spray').addEventListener('click', (e) => {
+      const g = e.target.closest('.sdot');
+      if (!g) return;
+      pause(); setStep(+g.dataset.step, true);
+      $('zone').closest('.card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+    $('spray').addEventListener('keydown', (e) => { const g = e.target.closest('.sdot'); if (e.key === 'Enter' && g) g.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    $('spray').addEventListener('mouseover', (e) => { const g = e.target.closest('.sdot'); if (g) $('bbLine').innerHTML = `${bbText(P[+g.dataset.pa])}<br><span style="color:var(--gold)">Click to replay this ball</span>`; });
+    $('spray').addEventListener('mouseleave', () => drawSpray());
     document.querySelectorAll('[data-zv]').forEach((b) => b.addEventListener('click', () => {
       zoneView = b.dataset.zv;
       document.querySelectorAll('[data-zv]').forEach((x) => x.classList.toggle('on', x === b));

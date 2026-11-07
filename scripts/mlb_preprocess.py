@@ -105,14 +105,14 @@ def build_game(pk, sched, sc_game, M):
                 st[(int(ab), int(pn))] = (v, w, hb, ivb)
 
     steps, pas, subs = [], [], []
-    state = {"inn": 1, "bot": 0, "outs": 0, "b": [0, 0, 0], "sa": 0, "sh": 0, "balls": 0, "strikes": 0}
+    state = {"inn": 1, "bot": 0, "outs": 0, "b": [0, 0, 0], "r": [0, 0, 0], "sa": 0, "sh": 0, "balls": 0, "strikes": 0}
     cur_p = {"home": None, "away": None}   # current pitcher by fielding side
 
     for play in ld["plays"]["allPlays"]:
         ab = play["about"]
         top = ab["isTopInning"]
         if (ab["inning"], 0 if top else 1) != (state["inn"], state["bot"]):
-            state.update(inn=ab["inning"], bot=0 if top else 1, outs=0, b=[0, 0, 0])
+            state.update(inn=ab["inning"], bot=0 if top else 1, outs=0, b=[0, 0, 0], r=[0, 0, 0])
             if ab["inning"] >= 10:   # extra innings start with a runner on second
                 state["b"] = [0, 1, 0]
         state.update(balls=0, strikes=0)
@@ -150,12 +150,13 @@ def build_game(pk, sched, sc_game, M):
             co = pd_.get("coordinates", {})
             key = (ab["atBatIndex"] + 1, e.get("pitchNumber"))
             sc = sc_idx.get(key)
-            pre = dict(state, b=list(state["b"]))
+            pre = dict(state, b=list(state["b"]), r=list(state["r"]))
             if sc is not None:   # Statcast's pre-pitch state is the most reliable (steals, wild pitches)
                 pre.update(outs=int(sc.outs_when_up), b=[int(pd.notna(sc.on_1b)), int(pd.notna(sc.on_2b)),
                                                          int(pd.notna(sc.on_3b))],
                            sa=int(sc.away_score), sh=int(sc.home_score),
-                           balls=int(sc.balls), strikes=int(sc.strikes))
+                           balls=int(sc.balls), strikes=int(sc.strikes),
+                           r=[int(x) if pd.notna(x) else 0 for x in (sc.on_1b, sc.on_2b, sc.on_3b)])
             tr = traj(co)
             tun = None
             if tr and prev_traj:
@@ -175,6 +176,11 @@ def build_game(pk, sched, sc_game, M):
                     "st": int(round(stv[0])) if stv else None, "xw": int(round(stv[1] * 100)) if stv else None,
                     "tu": tun, "dv": R(velo - season) if velo and season and not math.isnan(season) else None,
                     "pit": pit, "_pre": pre}
+            if sc is not None:   # Statcast bat tracking: bat speed, swing length, how far a whiff missed
+                for k2, col in (("bs", "bat_speed"), ("sl", "swing_length"), ("md", "miss_distance")):
+                    v = getattr(sc, col, None)
+                    if v is not None and pd.notna(v):
+                        step[k2] = R(v)
             if notes:
                 step["n"] = notes
                 notes = []
@@ -188,15 +194,20 @@ def build_game(pk, sched, sc_game, M):
             state.update(balls=e["count"]["balls"], strikes=e["count"]["strikes"])
         if len(steps) == pa["p0"]:   # no pitch (automatic intentional walk etc.): add a placeholder step
             steps.append({"a": pa_i, "t": None, "c": None, "d": pa["ev"], "cnt": [play["count"]["balls"], play["count"]["strikes"]],
-                          "o": play["count"]["outs"], "pit": pit, "_pre": dict(state, b=list(state["b"])),
+                          "o": play["count"]["outs"], "pit": pit, "_pre": dict(state, b=list(state["b"]), r=list(state["r"])),
                           **({"n": notes} if notes else {})})
         pa["p1"] = len(steps) - 1
         # post-PA state
         state["outs"] = play["count"]["outs"]
         state["sa"], state["sh"] = play["result"]["awayScore"], play["result"]["homeScore"]
-        state["b"] = [int("postOnFirst" in mu), int("postOnSecond" in mu), int("postOnThird" in mu)]
+        state["r"] = [mu.get(k2, {}).get("id", 0) for k2 in ("postOnFirst", "postOnSecond", "postOnThird")]
+        for k2 in ("postOnFirst", "postOnSecond", "postOnThird"):
+            if k2 in mu:
+                names[mu[k2]["id"]] = mu[k2]["fullName"]
+        state["b"] = [int(bool(x)) for x in state["r"]]
         if state["outs"] >= 3:
-            state["b"] = [0, 0, 0]
+            state["b"], state["r"] = [0, 0, 0], [0, 0, 0]
+        pa["runners"] = list(state["r"])
         pa["sc"] = [state["sa"], state["sh"]]
         pa["o"] = state["outs"]
         pa["bases"] = list(state["b"])
@@ -228,9 +239,13 @@ def build_game(pk, sched, sc_game, M):
         pa = pas[s["a"]]
         nxt = steps[k + 1] if k + 1 < len(steps) else None
         if nxt is not None and nxt["a"] == s["a"]:
-            b, sc = nxt["_pre"]["b"], [nxt["_pre"]["sa"], nxt["_pre"]["sh"]]
+            b, sc, rn = nxt["_pre"]["b"], [nxt["_pre"]["sa"], nxt["_pre"]["sh"]], nxt["_pre"]["r"]
         else:
-            b, sc = pa["bases"], pa["sc"]
+            b, sc, rn = pa["bases"], pa["sc"], pa["runners"]
+        s["rn"] = rn
+        for rid in rn:   # pinch runners may never bat, so look their names up
+            if rid and rid not in names:
+                names[rid] = gd["players"].get(f"ID{rid}", {}).get("fullName", f"#{rid}")
         s["bb"] = b[0] + 2 * b[1] + 4 * b[2]
         s["sc"] = sc
 

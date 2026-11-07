@@ -60,12 +60,16 @@
         <div class="stagecols">
           <div class="zonebox">
             <div class="matchup" id="matchupLine"></div>
-            <div class="resbanner" id="resBanner"><span class="gword" id="resWord">HOME RUN</span><div><div class="gwho" id="resWho"></div><div class="gwhat" id="resWhat"></div></div></div>
+            <div class="segmented stagetoggle" role="group" aria-label="Zone or field view">
+              <button data-sv="zone" class="on">Zone</button><button data-sv="field">Field</button>
+            </div>
             <svg id="zone" viewBox="0 0 300 330" role="img" aria-label="Strike zone with pitch locations"></svg>
-            <div class="segmented" role="group" aria-label="Pitches shown" style="width:max-content;margin:8px auto 0">
+            <svg id="fieldSvg" viewBox="12 18 226 190" role="img" aria-label="Field with runners and the ball in play" style="display:none"></svg>
+            <div class="segmented" id="zvRow" role="group" aria-label="Pitches shown" style="width:max-content;margin:8px auto 0">
               <button data-zv="pa" class="on">This at-bat</button><button data-zv="pit">Pitcher today</button>
             </div>
             <div class="ptlegend" id="ptLegend"></div>
+            <div class="playpop" id="playPop" aria-live="polite"></div>
           </div>
           <div class="pitchcard" id="pitchCard"></div>
         </div>

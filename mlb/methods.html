@@ -54,6 +54,7 @@
     <span class="tag">Replay</span>
     <h2>The replay never spoils</h2>
     <p>A game is a list of steps, one per pitch (plus a step for automatic intentional walks). At step <i>k</i> the page draws only what happened in steps 0 to <i>k</i>: score, count, runners, line score, box score, spray chart, win-probability line, turning points and bullpen grades. Errors in the line score appear once their half-inning is over, and a bullpen move's result appears only after that pitcher leaves. The win-probability chart can only jump backward.</p>
+      <p><b>Field view.</b> When a ball is put in play the replay switches to the field. The ball travels from home plate to where Statcast says it landed or was fielded. The arc and flight time are drawn from launch angle and exit velocity, because the public data has no full 3D ball tracking. Runners come from Statcast's base state before every pitch, so steals and wild pitches show up. The scoreboard waits until the ball lands. For whiffs, "missed by" is Statcast bat tracking's closest distance between the bat and the ball. It's drawn as a ring to scale around the pitch, since the data gives the distance but not the direction.</p>
   </section>
 
   <section class="card msec" id="win-probability">

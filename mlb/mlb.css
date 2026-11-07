@@ -177,3 +177,24 @@
 .matchup a, #boxTable a { color: inherit; text-decoration: none; }
 .matchup a:hover b, #boxTable a:hover { color: var(--gold); }
 @media (max-width: 900px) { .pdgrid { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- live field view + result pop-ups ---------- */
+.stagetoggle { width: max-content; margin: 0 auto 6px; }
+.stagetoggle button { padding: 4px 14px; }
+#fieldSvg { display: block; width: 100%; max-width: 360px; height: auto; aspect-ratio: 300 / 330; margin: 0 auto; }
+#fieldSvg text { font-family: Inter, sans-serif; font-weight: 500; paint-order: stroke; stroke: #0a101d; stroke-width: 2.2px; }
+.playpop { min-height: 104px; margin-top: 10px; padding: 9px 12px; border: 1px solid transparent; border-radius: 10px; opacity: 0; transform: translateY(6px); transition: opacity .2s, transform .2s, border-color .2s; }
+.playpop.show { opacity: 1; transform: none; border-color: rgba(255, 209, 102, .7); background: rgba(9, 14, 26, .6); }
+.pophead { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.pophead .gword { font-size: 30px; }
+.pophead .gword.outw { color: var(--text); }
+.popsub { font-size: 12px; color: var(--soft); }
+.popkv { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px 12px; margin-top: 6px; }
+.popkv span { display: block; font-size: 9.5px; font-weight: 500; letter-spacing: 1.1px; text-transform: uppercase; color: var(--dim); }
+.popkv b { font-size: 18px; font-weight: 300; font-variant-numeric: tabular-nums; }
+.popkv small { font-size: 10px; color: var(--dim); margin-left: 2px; }
+.popfoot { font-size: 11px; color: var(--muted); margin-top: 6px; line-height: 1.45; }
+.popfoot b { color: var(--gold); font-weight: 500; }
+.sdot { cursor: pointer; outline: none; }
+.sdot:hover .vis, .sdot:focus .vis { stroke: #ffd166; stroke-width: 2; }
+@media (max-width: 700px) { .popkv { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pophead .gword { font-size: 24px; } }
