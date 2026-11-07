@@ -7,6 +7,7 @@ Usage (Anaconda Prompt, from the repo folder):
 Every game found in --src (one *Events.csv per game) is written to
     data/games/<game-id>/meta.js, p1.js, p2.js, p3.js (+ p4.js for overtime)
 plus one index of all games at data/games.js for the NHL hub page.
+plus data/players.js (every skater across all games, see scripts/players.py).
 Each file sets a global, so the site also works opened straight from disk (file://).
 """
 import argparse
@@ -21,6 +22,7 @@ import numpy as np
 import pandas as pd
 
 import analytics as A
+import players as PL
 
 KEEP_EVERY = 2          # 30 fps -> 15 fps; the page interpolates between frames
 SCALE = 10              # store feet * 10 as ints (0.1 ft precision)
@@ -223,6 +225,7 @@ def shot_features(ev):
     med = att.groupby(["Team", "Period"])["X_Coordinate"].median()
     sgn = np.array([1 if med[(t, p)] >= 0 else -1 for t, p in zip(att["Team"], att["Period"])])
     xa, ya = att["X_Coordinate"].to_numpy() * sgn, att["Y_Coordinate"].to_numpy() * sgn
+    att["ax"], att["ay"] = xa, ya   # attacking the +x net (used for player shot maps)
     att["dist"] = np.hypot(89 - xa, ya)
     att["angle"] = np.degrees(np.arctan2(np.abs(ya), 89 - xa))
     att["rebound"] = [int(((att["Period"] == p) & (att["Team"] == t) & (att["clock_s"] > c)
@@ -429,7 +432,8 @@ def process_game(args):
     ev["pid"] = ev["Player_Id"].map(pid)
     ev["pid2"] = ev["Player_Id_2"].map(pid)
     ev["clock_s"] = ev["Clock"].map(clock_to_sec)
-    xg = xg_for(shot_features(ev), model)
+    feat = shot_features(ev)
+    xg = xg_for(feat, model)
 
     # Map each event to a playback frame. Goals use the tracking 'Goal Score = G' frame when
     # one sits within a few seconds of the event clock; everything else uses the first frame
@@ -472,6 +476,8 @@ def process_game(args):
                 rec["pre"] = 1   # happened before this period's tracking starts
             if gi in xg:
                 rec["xg"] = float(xg[gi])
+            if gi in feat.index and not (pd.isna(feat.at[gi, "ax"]) or pd.isna(feat.at[gi, "ay"])):
+                rec["sxy"] = [round(float(feat.at[gi, "ax"]), 1), round(float(feat.at[gi, "ay"]), 1)]   # shot spot, attacking right
 
             if e["Event"] == "Goal":
                 rec["ast"] = estimate_assists(ev, gi)
@@ -580,6 +586,7 @@ def main():
         return
     write_js(os.path.join(a.out, "games.js"), "RS_GAMES", games)
     print(f"Wrote {len(games)} games to {a.out}")
+    PL.build_players(a.out)
 
 
 if __name__ == "__main__":
