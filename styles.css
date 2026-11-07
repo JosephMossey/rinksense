@@ -331,5 +331,10 @@ td.mvempty { text-align: left; color: var(--dim); font-weight: 400; padding: 12p
 .gfoot .gstat + .gstat { margin-left: 0; }
 .sitefoot .mlinkfoot { color: var(--muted); }
 
-/* nav: Players link next to NHL; on phones keep only the first "soon" sport */
+/* nav: site links (Players) on the right, apart from the sports; on phones keep only the first "soon" sport */
+.navlinks { margin-left: auto; display: flex; gap: 4px; height: 100%; }
+.navlink { display: flex; align-items: center; padding: 0 12px; font-size: 13px; font-weight: 500; color: var(--muted); text-decoration: none; border-bottom: 1.5px solid transparent; }
+.navlink:hover { color: var(--text); }
+.navlink.on { color: var(--text); border-bottom-color: var(--gold); }
+@media (max-width: 760px) { .navlink { padding: 0 8px; } }
 @media (max-width: 480px) { .sport.soon + .sport.soon { display: none; } }
