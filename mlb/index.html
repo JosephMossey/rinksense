@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MLB Replays · RINKSENSE</title>
+<meta name="description" content="Every pitch of the 2026 MLB postseason, replayed with live win probability, Stuff+, pitch tunnels, xwOBA and graded bullpen decisions.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+<link rel="stylesheet" href="mlb.css">
+</head>
+<body>
+<nav class="sitenav">
+  <div class="navin">
+    <a class="brand" href="../index.html">RINKSENSE</a>
+    <div class="sports">
+      <a class="sport" href="../index.html">NHL</a>
+      <a class="sport on" href="index.html" aria-current="page">MLB</a>
+      <span class="sport soon">NBA<em>Soon</em></span>
+      <span class="sport soon">NFL<em>Soon</em></span>
+    </div>
+  </div>
+  <div class="subnav" aria-label="MLB sections"><div class="subin"><a class="subtab on" href="index.html" aria-current="page">Games</a><a class="subtab" href="methods.html">How it works</a></div></div>
+</nav>
+
+<main class="wrap hub">
+  <section class="hero">
+    <div class="herotext">
+      <div class="eyebrow">MLB · 2026 Postseason</div>
+      <h1 class="herotitle">Every pitch of October, replayed</h1>
+      <p class="lede">All 40 games of the 2026 playoffs, rebuilt pitch by pitch. Watch win probability move with every pitch, see how each pitch tunneled off the last one, and judge every bullpen move with the numbers the manager had at the time.</p>
+      <div class="cta">
+        <a class="btn primary" id="ctaLatest" href="#games">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>Watch the clincher
+        </a>
+        <a class="btn ghost" href="#games">Browse all games</a>
+      </div>
+      <div class="kpis" id="kpis"></div>
+    </div>
+    <figure class="card serieslist">
+      <figcaption><span class="ctitle">2026 Postseason · Series results</span></figcaption>
+      <ol id="series"></ol>
+    </figure>
+  </section>
+
+  <section id="games" class="games">
+    <div class="sechead">
+      <div>
+        <h2>All games</h2>
+        <p class="secsub" id="countLine"></p>
+      </div>
+      <div class="controls">
+        <label class="selectwrap">
+          <span class="sr">Filter by round</span>
+          <select id="roundFilter">
+            <option value="">All rounds</option>
+            <option>World Series</option><option>LCS</option><option>DS</option><option>Wild Card</option>
+          </select>
+        </label>
+        <div class="segmented" role="group" aria-label="Sort games">
+          <button data-sort="new" class="on">Newest</button>
+          <button data-sort="old">Oldest</button>
+          <button data-sort="drama">Most dramatic</button>
+        </div>
+      </div>
+    </div>
+    <div class="gamegrid" id="grid"></div>
+  </section>
+
+  <footer class="sitefoot">
+    <span>Data © MLB Advanced Media, via the MLB Stats API and Baseball Savant. Used for individual, non-commercial purposes. <a href="methods.html">How every stat is built</a></span>
+    <span>Built by Joseph Mossey · <a href="https://github.com/JosephMossey/rinksense" target="_blank" rel="noopener">Source on GitHub</a></span>
+  </footer>
+</main>
+
+<script src="data/games.js"></script>
+<script src="common.js"></script>
+<script src="hub.js"></script>
+</body>
+</html>

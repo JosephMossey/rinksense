@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MLB Replay · RINKSENSE</title>
+<meta name="description" content="Pitch-by-pitch replay of a 2026 MLB postseason game: live win probability, Stuff+, tunnels, xwOBA and graded bullpen decisions.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+<link rel="stylesheet" href="mlb.css">
+</head>
+<body>
+<nav class="sitenav">
+  <div class="navin">
+    <a class="brand" href="../index.html">RINKSENSE</a>
+    <div class="sports">
+      <a class="sport" href="../index.html">NHL</a>
+      <a class="sport on" href="index.html">MLB</a>
+      <span class="sport soon">NBA<em>Soon</em></span>
+      <span class="sport soon">NFL<em>Soon</em></span>
+    </div>
+  </div>
+  <div class="subnav" aria-label="MLB sections"><div class="subin"><a class="subtab on" href="index.html">Games</a><a class="subtab" href="methods.html">How it works</a></div></div>
+</nav>
+
+<div class="wrap">
+  <header class="ghead mlbhead">
+    <a class="back" href="index.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>All MLB games</a>
+    <div class="ghtop">
+      <div class="gscore">
+        <div class="glive"><span id="innLabel" class="inn">Pregame</span><span class="sep">·</span><span id="pitchLabel">Pitch 0</span></div>
+        <div class="gline" aria-live="polite">
+          <span class="tside"><i class="tdot a"></i><span id="awayName">Away</span></span>
+          <span class="sc" id="scoreA">0</span><span class="dash">–</span><span class="sc" id="scoreH">0</span>
+          <span class="tside"><span id="homeName">Home</span><i class="tdot d"></i></span>
+        </div>
+        <div class="bsoboard">
+          <svg class="bases" viewBox="0 0 54 40" aria-label="Runners on base" role="img">
+            <rect id="b2" x="21" y="3" width="12" height="12" transform="rotate(45 27 9)"/>
+            <rect id="b3" x="6" y="18" width="12" height="12" transform="rotate(45 12 24)"/>
+            <rect id="b1" x="36" y="18" width="12" height="12" transform="rotate(45 42 24)"/>
+          </svg>
+          <div class="cntbox">
+            <div><span class="gl">Count</span><span class="cnt" id="count">0–0</span></div>
+            <div><span class="gl">Outs</span><div class="outs" id="outs"><i></i><i></i></div></div>
+          </div>
+        </div>
+        <div class="gmeta"><h1 id="matchup">Game replay</h1><span id="gameinfo"></span></div>
+      </div>
+      <div class="linescore" id="linescore"></div>
+    </div>
+  </header>
+
+  <div class="mgrid">
+    <div class="left">
+      <section class="card">
+        <div class="chead"><span class="ctitle">Pitch by pitch</span><span class="csub" id="zoneSub">Catcher's view</span></div>
+        <div class="stagecols">
+          <div class="zonebox">
+            <div class="matchup" id="matchupLine"></div>
+            <div class="resbanner" id="resBanner"><span class="gword" id="resWord">HOME RUN</span><div><div class="gwho" id="resWho"></div><div class="gwhat" id="resWhat"></div></div></div>
+            <svg id="zone" viewBox="0 0 300 330" role="img" aria-label="Strike zone with pitch locations"></svg>
+            <div class="segmented" role="group" aria-label="Pitches shown" style="width:max-content;margin:8px auto 0">
+              <button data-zv="pa" class="on">This at-bat</button><button data-zv="pit">Pitcher today</button>
+            </div>
+            <div class="ptlegend" id="ptLegend"></div>
+          </div>
+          <div class="pitchcard" id="pitchCard"></div>
+        </div>
+        <div class="playback" style="padding:14px 18px 16px;border-top:1px solid var(--line)">
+          <div class="prow">
+            <button class="playbtn" id="playBtn" aria-label="Play"><svg viewBox="0 0 24 24" id="playIcon"><path d="M8 5v14l11-7z"/></svg></button>
+            <div class="prevnext">
+              <button class="iconbtn" id="prevBtn" aria-label="Previous pitch"><svg viewBox="0 0 24 24"><path d="M15 6l-8 6 8 6z"/></svg></button>
+              <button class="iconbtn" id="nextBtn" aria-label="Next pitch"><svg viewBox="0 0 24 24"><path d="M9 6l8 6-8 6z"/></svg></button>
+            </div>
+            <div class="scrub" id="scrub" role="slider" aria-label="Replay position" tabindex="0">
+              <div class="track"><div class="fill" id="fill"></div></div>
+              <div class="ticks" id="ticks"></div>
+              <div class="knob" id="knob"></div>
+            </div>
+            <span class="left-time" id="stepLabel">0 / 0</span>
+          </div>
+          <div class="prow2">
+            <div class="seg"><span class="slabel">Speed</span>
+              <button class="pill on" data-speed="1">1x</button><button class="pill" data-speed="2">2x</button><button class="pill" data-speed="4">4x</button>
+            </div>
+            <div class="seg">
+              <button class="pill" id="prevPA">Prev at-bat</button>
+              <button class="pill" id="nextPA">Next at-bat</button>
+              <button class="pill" id="nextHalf">Next half-inning</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card wpcard">
+        <div class="chead"><span class="ctitle">Win probability</span><span class="wpnow" id="wpNow"></span></div>
+        <div class="wpbox"><svg id="wpSvg" viewBox="0 0 800 150" preserveAspectRatio="none" role="img" aria-label="Win probability so far"></svg><div class="wplabels" id="wpLabels"></div></div>
+        <div class="chead sub" style="padding-top:12px"><span class="ctitle">Turning points so far</span><span class="csub">Biggest win-probability swings</span></div>
+        <ul class="tplist" id="tpList"></ul>
+      </section>
+    </div>
+
+    <div class="right">
+      <section class="card">
+        <div class="chead"><span class="ctitle">Spray chart</span><span class="csub">Batted balls so far</span></div>
+        <div class="spraybox">
+          <svg id="spray" viewBox="12 18 226 190" role="img" aria-label="Spray chart of batted balls"></svg>
+          <div class="ptlegend" style="margin:2px 0 10px"><span><i style="background:var(--teamA)"></i><b id="sprA" style="font-weight:400">Away</b></span><span><i style="background:var(--teamD)"></i><b id="sprH" style="font-weight:400">Home</b></span><span><i style="border:1.5px solid var(--muted);background:transparent"></i>Out</span></div>
+          <div class="bbline" id="bbLine"></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="chead"><span class="ctitle">Bullpen decisions</span><span class="csub"><a href="methods.html#decisions" style="color:var(--dim)">How they're graded</a></span></div>
+        <ul class="declist" id="decList"></ul>
+      </section>
+
+      <section class="card stats">
+        <div class="chead"><span class="ctitle">Box score</span><span class="csub">So far</span></div>
+        <div class="tabs boxtabs" role="tablist">
+          <button class="tab on" data-box="away"><i class="dot a"></i><span id="tabA">Away</span></button>
+          <button class="tab" data-box="home"><i class="dot d"></i><span id="tabH">Home</span></button>
+          <button class="tab" data-box="pit">Pitching</button>
+        </div>
+        <div class="tablebox"><table id="boxTable"></table></div>
+      </section>
+
+      <section class="card pbp">
+        <div class="chead"><span class="ctitle">Play-by-play</span><span class="csub">Win prob change for the batting team</span></div>
+        <ul id="pbpList"></ul>
+      </section>
+    </div>
+  </div>
+
+  <footer class="sitefoot">
+    <span>Data © MLB Advanced Media, via the MLB Stats API and Baseball Savant. Used for individual, non-commercial purposes. <a href="methods.html">How every stat is built</a></span>
+    <span>Built by Joseph Mossey · <a href="https://github.com/JosephMossey/rinksense" target="_blank" rel="noopener">Source on GitHub</a></span>
+  </footer>
+</div>
+
+<script src="common.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MLB Methods · RINKSENSE</title>
+<meta name="description" content="How every RINKSENSE baseball stat and model is built, how accurate it is, and what it can't see.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+<link rel="stylesheet" href="../report.css">
+<link rel="stylesheet" href="mlb.css">
+</head>
+<body>
+<nav class="sitenav">
+  <div class="navin">
+    <a class="brand" href="../index.html">RINKSENSE</a>
+    <div class="sports">
+      <a class="sport" href="../index.html">NHL</a>
+      <a class="sport on" href="index.html">MLB</a>
+      <span class="sport soon">NBA<em>Soon</em></span>
+      <span class="sport soon">NFL<em>Soon</em></span>
+    </div>
+  </div>
+  <div class="subnav" aria-label="MLB sections"><div class="subin"><a class="subtab" href="index.html">Games</a><a class="subtab on" href="methods.html" aria-current="page">How it works</a></div></div>
+</nav>
+
+<main class="wrap methods">
+  <a class="back" href="index.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>All MLB games</a>
+  <h1>How it works</h1>
+  <p class="lede">Every baseball number on RINKSENSE comes from MLB's public pitch-tracking data. The models are trained on the 2026 regular season and then used on the playoffs, which they never saw. This page explains each one, how accurate it is, and what it can't see.</p>
+  <ul class="mtoc">
+    <li><a href="#data">The data</a></li>
+    <li><a href="#replay">The replay</a></li>
+    <li><a href="#win-probability">Win probability</a></li>
+    <li><a href="#xwoba">xwOBA and xBA</a></li>
+    <li><a href="#stuff">Stuff+ and xWhiff</a></li>
+    <li><a href="#tunnels">Pitch tunnels</a></li>
+    <li><a href="#decisions">Bullpen decisions</a></li>
+    <li><a href="#limits">Limits</a></li>
+  </ul>
+
+  <section class="card msec" id="data">
+    <span class="tag">Source</span>
+    <h2>The data</h2>
+    <p>Two public MLB Advanced Media sources. The <b>MLB Stats API game feed</b> gives every play of each postseason game: the pitch-by-pitch sequence, count, runners, substitutions, the 9-parameter flight path of each pitch, and exit velocity, launch angle and landing spot for batted balls. <b>Baseball Savant</b> (Statcast) gives the same pitches for the whole season with extra columns like release point, extension, arm angle and run expectancy, which is what the models learn from.</p>
+    <div class="mstats" id="dataStats"></div>
+    <p>MLB's terms allow individual, non-commercial, non-bulk use. The site publishes only the 40 playoff games, trimmed to what the pages need. The full-season pitch data is used offline to train the models and is never published.</p>
+  </section>
+
+  <section class="card msec" id="replay">
+    <span class="tag">Replay</span>
+    <h2>The replay never spoils</h2>
+    <p>A game is a list of steps, one per pitch (plus a step for automatic intentional walks). At step <i>k</i> the page draws only what happened in steps 0 to <i>k</i>: score, count, runners, line score, box score, spray chart, win-probability line, turning points and bullpen grades. Errors in the line score appear once their half-inning is over, and a bullpen move's result appears only after that pitcher leaves. The win-probability chart can only jump backward.</p>
+  </section>
+
+  <section class="card msec" id="win-probability">
+    <span class="tag">Model</span>
+    <h2>Win probability</h2>
+    <p>The chance the home team wins, estimated before every pitch. It's a gradient-boosted classifier trained on every regular-season pitch with the game's final result as the label. Inputs: inning (10+ grouped together), top or bottom, outs, runners on each base, score difference (capped at ±8, and constrained so a bigger lead can never lower a team's chances), and the ball-strike count. Extra innings work because the automatic runner on second is part of the base state.</p>
+    <div class="mstats" id="wpStats"></div>
+    <p>Accuracy is measured two ways. On the regular season, five-fold cross-validation <b>by game</b> (all pitches from one game stay in the same fold), so the model is always scored on games it never saw. Then on the 40 playoff games, against Statcast's own published win expectancy on the same pitches. Brier score is the mean squared error of the probability: lower is better, and always guessing 50% scores 0.25.</p>
+    <svg id="calib" viewBox="0 0 360 230" style="width:100%;max-width:420px;display:block;margin:10px 0 4px" role="img" aria-label="Calibration chart"></svg>
+    <p style="font-size:12px;color:var(--dim)">Calibration: predicted vs actual home win rate, cross-validated pitches in 10% bins. On the diagonal means the percentages can be taken at face value.</p>
+  </section>
+
+  <section class="card msec" id="xwoba">
+    <span class="tag">Model</span>
+    <h2>xwOBA and xBA</h2>
+    <p>For every batted ball, a gradient-boosted classifier predicts the chance of an out, single, double, triple or home run from <b>exit velocity, launch angle and spray angle</b> (pull vs opposite field, mirrored for left-handed hitters). Expected wOBA is those chances times each outcome's wOBA weight; xBA is the chance of any hit. Strikeouts, walks and hit-by-pitches use their actual wOBA weight, since there's nothing to predict. Spray angle is the main difference from Savant's version, which uses exit velo and launch angle (plus sprint speed on weak contact): a 100 mph fly ball pulled down the line is a home run far more often than the same ball to center.</p>
+    <div class="mstats" id="xwStats"></div>
+    <p>Trained on March to July batted balls and tested on August through the end of the regular season. Lower RMSE means the per-ball value is closer to what actually happened. Both models are scored on the same test balls.</p>
+  </section>
+
+  <section class="card msec" id="stuff">
+    <span class="tag">Model</span>
+    <h2>Stuff+ and xWhiff</h2>
+    <p><b>Stuff+</b> rates a pitch only by how it comes out of the hand: velocity, induced vertical break, horizontal break, spin rate, extension, release height and side, arm angle, and how it differs in speed and movement from that pitcher's main fastball. Location and count are left out on purpose. A gradient-boosted model predicts each pitch's run value (Statcast's change in run expectancy, minus the average for that ball-strike count so breaking balls aren't penalized for being thrown when the hitter is behind). That prediction is flipped and rescaled so 100 is league average and every 10 points is one standard deviation. Higher is better.</p>
+    <p><b>xWhiff</b> uses the same inputs to predict the chance of a swing-and-miss if the hitter swings.</p>
+    <div class="mstats" id="stStats"></div>
+    <p>Validation is the standard test for a pitch-quality model: does it predict the future better than the results it's built from? The model is trained on April–June only. Then, for every pitcher's pitch type with 100+ pitches in each half, its average first-half Stuff+ is compared with that pitch's <b>second-half</b> run value, alongside the pitch's own first-half run value. Per-pitch run value is very noisy, so both correlations are small, but Stuff+ comes out ahead. Whiff rate is much more stable, and xWhiff matches it almost exactly.</p>
+  </section>
+
+  <section class="card msec" id="tunnels">
+    <span class="tag">Physics</span>
+    <h2>Pitch tunnels</h2>
+    <p>Each pitch in the game feed comes with a constant-acceleration fit of its flight (starting position, velocity and acceleration at 50 feet from the plate). From that, the replay finds where the ball is when it reaches the front of home plate and where it was <b>167 milliseconds earlier</b>, roughly when a hitter has to commit to a swing. For back-to-back pitches in the same at-bat it shows how far apart the two balls were at that decision point and at the plate. A strong tunnel is two different pitch types within 6 inches at the decision point that end up 10+ inches apart: the hitter sees the same thing, then gets something different.</p>
+  </section>
+
+  <section class="card msec" id="decisions">
+    <span class="tag">Model</span>
+    <h2>Bullpen decisions</h2>
+    <p>Every pitching change gets two grades, kept separate on purpose, because a good decision can turn out badly and a bad one can work out.</p>
+    <ul>
+      <li><b>Process</b> uses only what was known at the moment of the change. Each pitcher's regular-season xwOBA allowed is shrunk toward league average (as if he'd also faced <span id="priorPA">200</span> league-average batters, so a small sample can't dominate). The tired pitcher also gets the league's times-through-the-order penalty for his next trip (<span id="ttoTxt"></span>). The difference over the next 3 batters, divided by a wOBA scale of 1.25, is runs saved. That's multiplied by how much one run is worth right then (from the win-probability model at the current inning, outs, runners and score) to give a win-probability gain for the team making the move.</li>
+      <li><b>Result</b> is the team's actual win-probability change from the new pitcher's first pitch to his last.</li>
+    </ul>
+    <p>The card also shows what a manager watches: pitch count, trip through the order, fastball velocity in the last 10 fastballs vs his season average, and Stuff+ over his last 15 pitches. A process grade within ±0.25% is called a toss-up. Across the 326 playoff pitching changes, most process grades land within ±1% and the biggest are about ±3%. Those come in close games in the 8th and 9th, where a single run can be worth 30–40% of a win.</p>
+  </section>
+
+  <section class="card msec" id="limits">
+    <span class="tag">Honesty</span>
+    <h2>Limits</h2>
+    <ul class="limit">
+      <li>Win probability treats both teams as average. It doesn't know who's pitching, who's up, or that playoff teams are better than average.</li>
+      <li>Bullpen grades ignore platoon matchups, who's warming up, rest and availability, and the hitters actually due up. They show what the numbers said, not everything the manager knew.</li>
+      <li>xwOBA doesn't know about sprint speed, park, weather or defensive positioning.</li>
+      <li>Stuff+ is trained on 2026 alone. A pitch with a strange shape and few examples is less certain than one the model has seen thousands of times.</li>
+      <li>The tunnel decision point is a fixed 167 ms. Real hitters differ, and pitch tracking has small fitting errors (about an inch).</li>
+    </ul>
+  </section>
+
+  <footer class="sitefoot">
+    <span>Data © MLB Advanced Media, via the MLB Stats API and Baseball Savant. Used for individual, non-commercial purposes.</span>
+    <span>Built by Joseph Mossey · <a href="https://github.com/JosephMossey/rinksense" target="_blank" rel="noopener">Source on GitHub</a></span>
+  </footer>
+</main>
+
+<script src="data/models.js"></script>
+<script src="data/games.js"></script>
+<script src="methods.js"></script>
+</body>
+</html>

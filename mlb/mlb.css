@@ -1,0 +1,167 @@
+/* RINKSENSE MLB pages. Builds on ../styles.css tokens; everything MLB-specific lives here. */
+:root {
+  --ff: #ff5d73; --si: #ff9f43; --fc: #c98b5a;
+  --sl: #3fd0c3; --st: #6ee7b7; --cu: #9b87ff; --ch: #7bd389; --fs: #b6e35a; --kn: #8593ad;
+}
+
+/* ---------- hub ---------- */
+.serieslist { margin: 0; padding: 16px 18px 14px; }
+.serieslist ol { list-style: none; margin: 6px 0 0; padding: 0; }
+.serieslist li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: baseline; padding: 10px 0; border-top: 1px solid #152036; font-size: 13px; }
+.serieslist li:first-child { border-top: none; }
+.serieslist .sname { color: var(--muted); font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; font-weight: 500; }
+.serieslist .sres { font-variant-numeric: tabular-nums; color: var(--soft); text-align: right; }
+.serieslist .sres b { color: var(--text); font-weight: 500; }
+.serieslist li.ws .sname { color: var(--gold); }
+
+.gcard .spark { display: block; width: 100%; height: 46px; margin: 12px 0 6px; }
+.gcard .swing { font-size: 12px; color: var(--soft); line-height: 1.5; min-height: 36px; }
+.gcard .swing b { color: var(--gold); font-weight: 500; }
+.gcard .swing span { color: var(--dim); }
+.gtags { display: flex; gap: 6px; }
+.gtag { font-size: 9.5px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--gold); border: 1px solid rgba(255, 209, 102, .4); border-radius: 5px; padding: 1px 6px; }
+.gtag.dim { color: var(--muted); border-color: var(--line-2); }
+
+/* ---------- game view: scoreboard ---------- */
+.mlbhead .gline { gap: 14px; }
+.bsoboard { display: flex; align-items: center; gap: 18px; margin-top: 12px; flex-wrap: wrap; }
+.bases { width: 54px; height: 40px; display: block; }
+.bases rect { fill: none; stroke: var(--dim); stroke-width: 1.4; transition: fill .2s, stroke .2s; }
+.bases rect.on { fill: var(--gold); stroke: var(--gold); }
+.cntbox { display: flex; gap: 16px; }
+.cntbox .gl { display: block; margin-bottom: 4px; }
+.cnt { font-size: 22px; font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; }
+.outs { display: flex; gap: 5px; padding-top: 5px; }
+.outs i { width: 10px; height: 10px; border-radius: 50%; border: 1.4px solid var(--dim); }
+.outs i.on { background: var(--gold); border-color: var(--gold); }
+.inn { color: var(--gold); }
+
+.linescore { border: 1px solid var(--line); border-radius: 12px; background: var(--card); overflow-x: auto; scrollbar-width: thin; max-width: 100%; }
+.linescore table { font-size: 12px; min-width: 100%; }
+.linescore th { background: transparent; position: static; padding: 8px 7px 4px; }
+.linescore td { padding: 5px 7px; border-top: 1px solid #152036; text-align: center; min-width: 22px; }
+.linescore td:first-child { font-weight: 600; padding-left: 12px; white-space: nowrap; }
+.linescore .tot { color: var(--text); font-weight: 500; }
+.linescore td.cur { color: var(--gold); }
+.linescore th.sep, .linescore td.sep { border-left: 1px solid var(--line); }
+
+/* ---------- game view: stage ---------- */
+.mgrid { display: grid; grid-template-columns: minmax(0, 1fr) 390px; gap: 18px; align-items: start; }
+.stagecols { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 0; }
+.zonebox { padding: 14px 18px 12px; border-right: 1px solid var(--line); position: relative; }
+#zone { display: block; width: 100%; max-width: 360px; height: auto; margin: 0 auto; }
+#zone text { font-family: Inter, sans-serif; }
+.matchup { padding: 0 2px 8px; font-size: 12.5px; color: var(--soft); display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.matchup b { color: var(--text); font-weight: 500; }
+.matchup span { color: var(--dim); }
+.ptlegend { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 11px; color: var(--muted); justify-content: center; margin-top: 6px; }
+.ptlegend span { display: flex; align-items: center; gap: 5px; }
+.ptlegend i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+.pitchcard { padding: 14px 18px 12px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.pchead { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.ptname { font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+.ptname i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.pcall { font-size: 12px; color: var(--muted); text-align: right; }
+.pcall.strike { color: var(--text); }
+.pcall.hl { color: var(--gold); }
+.pgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
+.pv { font-size: 26px; font-weight: 300; line-height: 1.05; font-variant-numeric: tabular-nums; margin-top: 4px; }
+.pv small { font-size: 11px; color: var(--dim); margin-left: 3px; }
+.psub2 { font-size: 11px; color: var(--dim); margin-top: 3px; font-variant-numeric: tabular-nums; }
+.psub2 .up { color: #7bd389; } .psub2 .down { color: var(--teamA); }
+.tunnel { border-top: 1px solid var(--line); padding-top: 10px; }
+.tbar { position: relative; height: 22px; margin-top: 8px; }
+.tbar .ln { position: absolute; left: 0; right: 0; top: 10px; height: 2px; background: var(--line-2); border-radius: 1px; }
+.tbar .mk { position: absolute; top: 5px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; border: 2px solid var(--card); }
+.tbar .mk.dec { background: var(--gold); } .tbar .mk.pl { background: var(--soft); }
+.tlabels { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tlabels b { color: var(--text); font-weight: 500; }
+.pnote { font-size: 12px; color: var(--soft); line-height: 1.5; }
+.pnote.dimmed { color: var(--dim); }
+
+.resbanner {
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%) translateY(-6px);
+  display: flex; align-items: center; gap: 12px; padding: 7px 14px;
+  background: rgba(9, 14, 26, .9); border: 1px solid rgba(255, 209, 102, .75); border-radius: 10px;
+  pointer-events: none; opacity: 0; transition: opacity .25s, transform .25s; white-space: nowrap; z-index: 2;
+}
+.resbanner.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.resbanner .gword { font-size: 28px; }
+
+.prevnext { display: flex; gap: 4px; }
+.iconbtn { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: transparent; border: 1px solid var(--line-2); cursor: pointer; flex: none; }
+.iconbtn svg { width: 14px; height: 14px; fill: var(--muted); }
+.iconbtn:hover svg { fill: var(--text); }
+.tick.tp { background: var(--gold); }
+.tick.inn { background: var(--line-2); width: 1px; top: 8px; height: 10px; }
+
+/* win probability */
+.wpcard { padding-bottom: 12px; }
+#wpSvg { display: block; width: calc(100% - 36px); height: 150px; margin: 0 18px; touch-action: pan-y; cursor: pointer; }
+#wpSvg text { font-family: Inter, sans-serif; }
+.wpnow { font-size: 13px; color: var(--soft); font-variant-numeric: tabular-nums; }
+.wpnow b { font-weight: 600; }
+.tplist { list-style: none; margin: 6px 0 0; padding: 0 18px; }
+.tplist li { display: grid; grid-template-columns: 48px minmax(0, 1fr) 62px; gap: 10px; align-items: baseline; padding: 8px 0; border-top: 1px solid #152036; font-size: 12px; color: var(--soft); cursor: pointer; }
+.tplist li:hover { color: var(--text); }
+.tplist .tpi { color: var(--dim); font-variant-numeric: tabular-nums; }
+.tplist .tpd { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.tplist .empty { cursor: default; display: block; color: var(--dim); font-size: 11.5px; }
+
+/* spray chart */
+.spraybox { padding: 0 18px 14px; }
+#spray { display: block; width: 100%; max-width: 340px; height: auto; margin: 0 auto; }
+.bbline { font-size: 12px; color: var(--soft); line-height: 1.55; min-height: 38px; }
+.bbline b { color: var(--text); font-weight: 500; }
+.bbline .x { color: var(--gold); }
+
+/* manager decisions */
+.declist { list-style: none; margin: 0; padding: 0 18px 8px; max-height: 420px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
+.declist li { padding: 11px 0; border-top: 1px solid #152036; font-size: 12px; color: var(--soft); }
+.declist li:first-child { border-top: none; }
+.dtop { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.dtop .who { color: var(--text); font-weight: 500; }
+.dtop .when { color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dwhy { margin-top: 4px; color: var(--muted); line-height: 1.5; }
+.dgrades { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.dg { border: 1px solid var(--line-2); border-radius: 7px; padding: 3px 8px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.dg b { font-weight: 600; margin-left: 4px; }
+.good { color: #7bd389; } .bad { color: var(--teamA); } .meh { color: var(--soft); }
+.declist .empty { color: var(--dim); border: none; }
+
+/* pbp */
+.pbp li .wpd { margin-left: auto; color: var(--dim); font-variant-numeric: tabular-nums; flex: none; font-size: 11px; }
+.pbp li.big .what { color: var(--gold); }
+.pbp li { cursor: pointer; }
+.pbp li:hover { color: var(--text); }
+
+/* box score */
+.boxtabs { grid-template-columns: 1fr 1fr 1fr; }
+.tablebox td:first-child { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- responsive ---------- */
+@media (max-width: 1100px) {
+  .mgrid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 700px) {
+  .stagecols { grid-template-columns: minmax(0, 1fr); }
+  .zonebox { border-right: none; border-bottom: 1px solid var(--line); padding: 12px 12px 10px; }
+  .pitchcard { padding: 12px 14px; }
+  .bsoboard { gap: 14px; }
+  .resbanner .gword { font-size: 22px; }
+  #wpSvg { width: calc(100% - 20px); margin: 0 10px; }
+  .tplist, .declist, .spraybox { padding-left: 12px; padding-right: 12px; }
+}
+
+/* fixes: wp labels in HTML, box table scroll, card tags */
+.wpbox { position: relative; margin: 0 18px; }
+.wpbox #wpSvg { width: 100%; margin: 0; }
+.wplabels { position: absolute; inset: 0; pointer-events: none; }
+.wl { position: absolute; font-size: 10px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.wl.inn { bottom: -2px; margin-left: 3px; font-size: 9px; }
+.stats .tablebox { overflow-x: auto; }
+#boxTable th, #boxTable td { padding: 6px 5px; }
+.gcard .gtop { gap: 8px; align-items: flex-start; }
+.gtag { white-space: nowrap; }
+@media (max-width: 700px) { .wpbox { margin: 0 10px; } .wpbox #wpSvg { width: 100%; margin: 0; } }
