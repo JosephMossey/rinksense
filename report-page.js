@@ -291,15 +291,59 @@
       let s = rinkBase;
       for (const [a, b, k] of [...net.edges].reverse()) {
         if (k < minE || !pos[a] || !pos[b]) continue;
-        s += `<line x1="${pos[a].x.toFixed(1)}" y1="${pos[a].y.toFixed(1)}" x2="${pos[b].x.toFixed(1)}" y2="${pos[b].y.toFixed(1)}" stroke="${c}" stroke-width="${(1 + (k / maxE) * 9).toFixed(1)}" stroke-linecap="round" opacity="${(0.25 + (k / maxE) * 0.6).toFixed(2)}"><title>#${esc(a)} ↔ #${esc(b)}: ${k} passes</title></line>`;
+        s += `<line class="pe" data-a="${esc(a)}" data-b="${esc(b)}" x1="${pos[a].x.toFixed(1)}" y1="${pos[a].y.toFixed(1)}" x2="${pos[b].x.toFixed(1)}" y2="${pos[b].y.toFixed(1)}" stroke="${c}" stroke-width="${(1 + (k / maxE) * 9).toFixed(1)}" stroke-linecap="round" opacity="${(0.25 + (k / maxE) * 0.6).toFixed(2)}"><title>#${esc(a)} ↔ #${esc(b)}: ${k} passes</title></line>`;
       }
       for (const [j, p] of Object.entries(pos)) {
         const r = 7 + (p.n / maxN) * 9;
-        s += `<g><circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${r.toFixed(1)}" fill="${c}" stroke="#0a101d" stroke-width="1.5"/><text x="${p.x.toFixed(1)}" y="${(p.y + 3.5).toFixed(1)}" text-anchor="middle" font-size="${r > 11 ? 10 : 9}" font-weight="600" fill="${txt}" font-family="Inter, sans-serif">${esc(j)}</text><title>#${esc(j)}: ${p.n} passes made or received</title></g>`;
+        s += `<g class="pnode" data-j="${esc(j)}" tabindex="0" role="button" aria-label="#${esc(j)}: ${p.n} passes made or received. Show connections"><circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${r.toFixed(1)}" fill="${c}" stroke="#0a101d" stroke-width="1.5"/><text x="${p.x.toFixed(1)}" y="${(p.y + 3.5).toFixed(1)}" text-anchor="middle" font-size="${r > 11 ? 10 : 9}" font-weight="600" fill="${txt}" font-family="Inter, sans-serif">${esc(j)}</text><title>#${esc(j)}: ${p.n} passes made or received</title></g>`;
       }
       $('pnChart').innerHTML = s;
-      $('pnTop').innerHTML = net.edges.slice(0, 6).map(([a, b, k]) => `<li><span>#${esc(a)} ↔ #${esc(b)}</span><b>${k}</b></li>`).join('') || '<li><span>No completed passes logged.</span></li>';
+      PN.sel = null;
+      PN.net = net;
+      highlightPN(null);
     }
+
+    // Hover (or tap / keyboard) a player: light up their connections in gold, fade everything else,
+    // and switch the side list to who they pass with. Tapping again (or tapping the ice) clears it.
+    function highlightPN(j) {
+      const svg = $('pnChart'), net = PN.net || { edges: [] };
+      if (!j) {
+        svg.classList.remove('focus');
+        svg.querySelectorAll('.pnode, .pe').forEach((el) => el.classList.remove('on'));
+        $('pnTopTitle').textContent = 'Top connections';
+        $('pnTop').innerHTML = net.edges.slice(0, 6).map(([a, b, k]) => `<li><span>#${esc(a)} ↔ #${esc(b)}</span><b>${k}</b></li>`).join('') || '<li><span>No completed passes logged.</span></li>';
+        return;
+      }
+      const mates = new Set([j]);
+      svg.classList.add('focus');
+      svg.querySelectorAll('.pe').forEach((l) => {
+        const on = l.dataset.a === j || l.dataset.b === j;
+        l.classList.toggle('on', on);
+        if (on) mates.add(l.dataset.a === j ? l.dataset.b : l.dataset.a);
+      });
+      svg.querySelectorAll('.pnode').forEach((g) => g.classList.toggle('on', mates.has(g.dataset.j)));
+      const list = net.edges.filter(([a, b]) => a === j || b === j).map(([a, b, k]) => [a === j ? b : a, k]);
+      const total = list.reduce((n, [, k]) => n + k, 0);
+      $('pnTopTitle').textContent = `#${j} passes with · ${total} total`;
+      $('pnTop').innerHTML = list.slice(0, 8).map(([m, k]) => `<li><span>#${esc(m)}</span><b>${k}</b></li>`).join('') || '<li><span>No completed passes.</span></li>';
+    }
+    const pnSvg = $('pnChart');
+    pnSvg.addEventListener('pointerover', (ev) => {
+      const g = ev.target.closest('.pnode');
+      if (g && !PN.sel && ev.pointerType === 'mouse') highlightPN(g.dataset.j);
+    });
+    pnSvg.addEventListener('pointerleave', () => { if (!PN.sel) highlightPN(null); });
+    pnSvg.addEventListener('click', (ev) => {
+      const g = ev.target.closest('.pnode');
+      PN.sel = g && PN.sel !== g.dataset.j ? g.dataset.j : null;
+      highlightPN(PN.sel);
+    });
+    pnSvg.addEventListener('keydown', (ev) => {
+      const g = ev.target.closest('.pnode');
+      if (g && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); PN.sel = PN.sel === g.dataset.j ? null : g.dataset.j; highlightPN(PN.sel); }
+      if (ev.key === 'Escape') { PN.sel = null; highlightPN(null); }
+    });
+    pnSvg.addEventListener('focusin', (ev) => { const g = ev.target.closest('.pnode'); if (g && !PN.sel) highlightPN(g.dataset.j); });
     renderPN();
 
     // ---------- share card ----------
