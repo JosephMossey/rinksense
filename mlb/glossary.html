@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MLB Glossary · RINKSENSE</title>
+<meta name="description" content="Every RINKSENSE baseball stat in plain English: what it means, what good looks like in 2026, and a real example from the postseason.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+<link rel="stylesheet" href="../players.css">
+<link rel="stylesheet" href="mlb.css">
+</head>
+<body>
+<nav class="sitenav">
+  <div class="navin">
+    <a class="brand" href="../index.html">RINKSENSE</a>
+    <div class="sports">
+      <a class="sport" href="../index.html">NHL</a>
+      <a class="sport on" href="index.html">MLB</a>
+      <span class="sport soon">NBA<em>Soon</em></span>
+      <span class="sport soon">NFL<em>Soon</em></span>
+    </div>
+  </div>
+  <div class="subnav" aria-label="MLB sections"><div class="subin"><a class="subtab" href="index.html">Games</a><a class="subtab" href="players.html">Players</a><a class="subtab on" href="glossary.html" aria-current="page">Glossary</a><a class="subtab" href="methods.html">How it works</a></div></div>
+</nav>
+
+<main class="wrap plist">
+  <header class="phero">
+    <div class="eyebrow">MLB · Glossary</div>
+    <h1 class="ptitle1">Every stat, in plain English</h1>
+    <p class="lede">What each number means, what good looks like, and a real example from October. The "what good looks like" scales come from qualified 2026 regular-season players. The math behind the models lives on <a href="methods.html" style="color:var(--gold)">How it works</a>.</p>
+  </header>
+
+  <div class="pltools gltools">
+    <label class="search">
+      <span class="sr">Search stats</span>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+      <input id="glSearch" type="search" placeholder="Search a stat" autocomplete="off">
+    </label>
+    <div class="segmented" role="group" aria-label="Category" id="glCat">
+      <button data-v="" class="on">All</button><button data-v="Hitting">Hitting</button><button data-v="Pitching">Pitching</button><button data-v="Game state">Game state</button><button data-v="Bat tracking">Bat tracking</button>
+    </div>
+    <span class="plcount" id="glCount" role="status"></span>
+  </div>
+  <div class="glgrid" id="glGrid"></div>
+
+  <footer class="sitefoot">
+    <span>Data © MLB Advanced Media, via the MLB Stats API and Baseball Savant. Used for individual, non-commercial purposes. <a href="methods.html">How every stat is built</a></span>
+    <span>Built by Joseph Mossey · <a href="https://github.com/JosephMossey/rinksense" target="_blank" rel="noopener">Source on GitHub</a></span>
+  </footer>
+</main>
+
+<script src="data/glossary.js"></script>
+<script src="glossary-terms.js"></script>
+<script src="glossary.js"></script>
+</body>
+</html>

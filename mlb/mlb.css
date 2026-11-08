@@ -198,3 +198,36 @@
 .sdot { cursor: pointer; outline: none; }
 .sdot:hover .vis, .sdot:focus .vis { stroke: #ffd166; stroke-width: 2; }
 @media (max-width: 700px) { .popkv { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pophead .gword { font-size: 24px; } }
+
+/* ---------- glossary + stat tooltips ---------- */
+.gltools { padding: 0 0 16px; }
+.glgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 14px; }
+.glcard { padding: 18px 20px 16px; scroll-margin-top: 116px; display: flex; flex-direction: column; gap: 8px; transition: border-color .3s; }
+.glcard.hl { border-color: var(--gold); }
+.glhead { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.glhead h2 { font-size: 17px; font-weight: 500; margin: 0; letter-spacing: -.2px; }
+.glshort { margin: 0; font-size: 14px; color: var(--text); line-height: 1.5; }
+.glplain { margin: 0; font-size: 13px; color: var(--soft); line-height: 1.6; }
+.glscale { margin-top: 4px; }
+.glbar { display: flex; gap: 2px; height: 6px; border-radius: 3px; overflow: hidden; }
+.glbar i { flex: 1; }
+.glbar .b0 { background: #ff8a80; } .glbar .b1 { background: #8593ad; } .glbar .b2 { background: #7bd389; } .glbar .b3 { background: var(--gold); }
+.gllabels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin-top: 6px; }
+.gllabels span { font-size: 11px; color: var(--dim); line-height: 1.3; }
+.gllabels b { display: block; font-size: 14px; font-weight: 400; color: var(--text); font-variant-numeric: tabular-nums; }
+.glnote { font-size: 10.5px; color: var(--dim); margin-top: 4px; }
+.glex { display: flex; align-items: baseline; gap: 8px; font-size: 12.5px; color: var(--soft); text-decoration: none; border-top: 1px solid var(--line); padding-top: 9px; line-height: 1.45; }
+.glex span { flex: none; font-size: 10px; font-weight: 500; letter-spacing: 1.2px; text-transform: uppercase; color: var(--gold); }
+.glex i { margin-left: auto; font-style: normal; color: var(--dim); }
+.glex:hover { color: var(--text); } .glex:hover i { color: var(--gold); }
+.glmore { font-size: 12px; color: var(--muted); align-self: flex-start; }
+.glmore:hover { color: var(--gold); }
+@media (max-width: 600px) { .glgrid { grid-template-columns: minmax(0, 1fr); } .glcard { padding: 16px; } #glCat { flex-wrap: wrap; } }
+
+.tterm { text-decoration: underline dotted var(--dim); text-underline-offset: 3px; cursor: help; }
+.tterm:focus-visible { outline: 1px solid var(--gold); outline-offset: 2px; border-radius: 2px; }
+.rstip { position: absolute; z-index: 60; max-width: 280px; padding: 10px 12px; background: #121c30; border: 1px solid var(--line-2); border-radius: 9px; box-shadow: 0 8px 24px rgba(0, 0, 0, .45); font-size: 12.5px; line-height: 1.5; color: var(--soft); text-transform: none; letter-spacing: 0; opacity: 0; pointer-events: none; transition: opacity .15s; }
+.rstip.show { opacity: 1; pointer-events: auto; }
+.rstip b { display: block; color: var(--text); font-weight: 500; margin-bottom: 3px; }
+.rstip a { display: inline-block; margin-top: 6px; color: var(--gold); text-decoration: none; font-weight: 500; }
+.rstip a:hover { text-decoration: underline; }
